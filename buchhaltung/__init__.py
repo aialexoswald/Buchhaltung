@@ -42,7 +42,7 @@ def create_app(konfiguration=None):
 
     @app.before_request
     def schutz():
-        if request.endpoint in ("static", "login"):
+        if request.endpoint in ("static", "login", "lebenszeichen"):
             return None
         if app.config["PASSWORT"] and not session.get("angemeldet"):
             return redirect(url_for("login", weiter=request.path))

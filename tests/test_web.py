@@ -81,3 +81,27 @@ def test_login_keine_offene_weiterleitung(tmp_path, ziel):
     app = create_app({"DATENVERZEICHNIS": tmp_path, "PASSWORT": "geheim", "SECRET_KEY": "x"})
     antwort = app.test_client().post(f"/login?weiter={ziel}", data={"passwort": "geheim"})
     assert antwort.headers["Location"] == "/"
+
+
+def test_datensicherung(client):
+    import io
+    import zipfile
+    neue_rechnung(client)
+    antwort = client.get("/datensicherung")
+    assert antwort.status_code == 200
+    assert "buchhaltung.db" in zipfile.ZipFile(io.BytesIO(antwort.data)).namelist()
+
+
+def test_desktop_beenden(tmp_path):
+    aufrufe = []
+    app = create_app({"DATENVERZEICHNIS": tmp_path, "SECRET_KEY": "x", "DESKTOP": True,
+                      "BEENDEN": lambda: aufrufe.append(1)})
+    c = app.test_client()
+    assert c.get("/lebenszeichen").data == b"buchhaltung"
+    seite = c.get("/").get_data(as_text=True)
+    assert "Beenden" in seite
+    token = re.search(r'name="csrf_token" value="([^"]+)"', seite).group(1)
+    assert c.post("/beenden", data={"csrf_token": token}).status_code == 200
+    import time
+    time.sleep(0.5)
+    assert aufrufe == [1]

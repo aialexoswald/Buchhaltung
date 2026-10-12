@@ -12,7 +12,7 @@ def main():
     unter = parser.add_subparsers(dest="befehl")
     start = unter.add_parser("start", help="Web-App starten (Standard)")
     start.add_argument("--host", default="127.0.0.1")
-    start.add_argument("--port", type=int, default=5000)
+    start.add_argument("--port", type=int, default=8765)
     start.add_argument("--kein-browser", action="store_true")
     imp = unter.add_parser("import", help="Bisherige Excel-Datei übernehmen")
     imp.add_argument("datei")
@@ -28,7 +28,7 @@ def main():
         return
 
     host = getattr(args, "host", "127.0.0.1")
-    port = getattr(args, "port", 5000)
+    port = getattr(args, "port", 8765)
     if not getattr(args, "kein_browser", False):
         webbrowser.open(f"http://{host}:{port}/")
     app.run(host=host, port=port)

@@ -7,3 +7,5 @@ data/
 *.db
 *.xlsx
 !tests/fixtures/*.xlsx
+build/
+dist/

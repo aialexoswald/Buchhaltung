@@ -33,4 +33,11 @@
   </div>
   <button class="primaer">Speichern</button>
 </form>
+<div class="karte" style="margin-top:1.5rem">
+  <h2>Datensicherung</h2>
+  <p class="leise">Lädt alle Daten (Rechnungen, Kunden, Einstellungen und Belege) als ZIP-Datei herunter.
+    Bitte regelmäßig ausführen und die Datei z. B. in OneDrive ablegen.</p>
+  {% if config.DESKTOP %}<p class="klein leise">Speicherort der Daten auf diesem Mac: {{ config.DATENVERZEICHNIS }}</p>{% endif %}
+  <a class="knopf" href="{{ url_for('verwaltung.datensicherung') }}">Datensicherung herunterladen</a>
+</div>
 {% endblock %}

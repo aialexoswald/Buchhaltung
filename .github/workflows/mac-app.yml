@@ -1,0 +1,87 @@
+name: Tests & Mac-App
+
+on:
+  push:
+    branches: [main, "claude/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest -q
+
+  mac:
+    needs: tests
+    if: github.event_name != 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            chip: AppleSilicon
+          - runner: macos-15-intel
+            chip: Intel
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt pyinstaller
+      - name: App bauen
+        env:
+          BUCHHALTUNG_VERSION: "1.${{ github.run_number }}"
+        run: |
+          pyinstaller --noconfirm --distpath dist --workpath build packaging/Buchhaltung.spec
+          codesign --force --deep --sign - dist/Buchhaltung.app
+          codesign --verify --deep --strict dist/Buchhaltung.app
+      - name: App starten und Seiten prüfen
+        env:
+          BUCHHALTUNG_KEIN_BROWSER: "1"
+          BUCHHALTUNG_PORT: "8799"
+          BUCHHALTUNG_DATEN: ${{ runner.temp }}/daten
+        run: |
+          dist/Buchhaltung.app/Contents/MacOS/Buchhaltung &
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:8799/lebenszeichen && break; sleep 1; done
+          for seite in / /ausgang/neu /auswertung/uva /auswertung/umsatz /einstellungen; do
+            curl -sf -o /dev/null "http://127.0.0.1:8799$seite" || { cat "$BUCHHALTUNG_DATEN/buchhaltung.log"; exit 1; }
+          done
+          kill %1
+      - name: Verpacken
+        run: ditto -c -k --keepParent dist/Buchhaltung.app "Buchhaltung-Mac-${{ matrix.chip }}.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Buchhaltung-Mac-${{ matrix.chip }}
+          path: Buchhaltung-Mac-${{ matrix.chip }}.zip
+
+  release:
+    needs: mac
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: mac-${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          name: Buchhaltung für Mac (Version 1.${{ github.run_number }})
+          make_latest: "true"
+          files: Buchhaltung-Mac-*.zip
+          body: |
+            **Download:** Mac mit Apple-Chip (M1, M2, M3, M4 …) → `Buchhaltung-Mac-AppleSilicon.zip`,
+            ältere Mac mit Intel-Prozessor → `Buchhaltung-Mac-Intel.zip`
+            (Apple-Menü  → „Über diesen Mac“ zeigt, welcher Chip verbaut ist).
+
+            ZIP öffnen, „Buchhaltung“ in den Ordner „Programme“ ziehen, per Doppelklick starten.
+            Beim allerersten Start: siehe Anleitung in der README.

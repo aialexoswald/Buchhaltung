@@ -68,11 +68,12 @@ nav.seite {
 }
 nav.seite .marke { font-weight: 700; font-size: 1.05rem; padding: 0 .6rem 1rem; display: block; color: var(--text); }
 nav.seite .gruppe { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-3); padding: .9rem .6rem .3rem; }
-nav.seite a.link {
+nav.seite a.link, nav.seite button.link {
   display: flex; justify-content: space-between; align-items: center;
   padding: .4rem .6rem; border-radius: 6px; color: var(--text-2);
 }
-nav.seite a.link:hover { background: var(--flaeche-2); text-decoration: none; color: var(--text); }
+nav.seite button.link { width: 100%; border: 0; background: none; font-weight: 400; font-size: inherit; }
+nav.seite a.link:hover, nav.seite button.link:hover { background: var(--flaeche-2); text-decoration: none; color: var(--text); }
 nav.seite a.link.aktiv { background: var(--flaeche-2); color: var(--text); font-weight: 600; }
 main { padding: 1.75rem 2rem 3rem; max-width: 1280px; width: 100%; min-width: 0; }
 .kopf { display: flex; flex-wrap: wrap; gap: 1rem; justify-content: space-between; align-items: flex-end; margin-bottom: 1.25rem; }

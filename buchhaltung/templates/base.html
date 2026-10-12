@@ -25,6 +25,12 @@
     <a class="link {{ 'aktiv' if ep == 'verwaltung.einstellungen_seite' }}" href="{{ url_for('verwaltung.einstellungen_seite') }}">Einstellungen</a>
     <a class="link {{ 'aktiv' if ep == 'verwaltung.import_seite' }}" href="{{ url_for('verwaltung.import_seite') }}">Excel-Import</a>
     {% if config.PASSWORT %}<a class="link" href="{{ url_for('logout') }}">Abmelden</a>{% endif %}
+    {% if config.DESKTOP %}
+    <form method="post" action="{{ url_for('beenden') }}" style="margin-top:.5rem" data-bestaetigen="Buchhaltung beenden?">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="link">Beenden</button>
+    </form>
+    {% endif %}
   </nav>
   <main>
     {% with meldungen = get_flashed_messages(with_categories=true) %}

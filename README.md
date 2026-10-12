@@ -22,17 +22,37 @@ einzigen Datei (`data/buchhaltung.db`) auf Ihrem Rechner.
 - **Plausibilitätsprüfung** auf der Übersicht (falsche Jahreszahlen, fehlende Beträge,
   fehlende Lieferanten, …).
 
-## Installation & Start
+## Installation auf dem Mac (empfohlen)
+
+1. **Herunterladen** – passend zu Ihrem Mac (Apple-Menü  → „Über diesen Mac“ zeigt den Chip):
+   - Apple-Chip (M1, M2, M3, M4 …):
+     [Buchhaltung-Mac-AppleSilicon.zip](https://github.com/aialexoswald/Buchhaltung/releases/latest/download/Buchhaltung-Mac-AppleSilicon.zip)
+   - Intel-Prozessor:
+     [Buchhaltung-Mac-Intel.zip](https://github.com/aialexoswald/Buchhaltung/releases/latest/download/Buchhaltung-Mac-Intel.zip)
+2. Die ZIP-Datei im Ordner „Downloads“ doppelklicken und **„Buchhaltung“ in den Ordner
+   „Programme“ ziehen**.
+3. **Erster Start (nur einmal nötig):** Die App ist nicht bei Apple registriert, daher
+   blockiert macOS sie beim ersten Mal.
+   - „Buchhaltung“ doppelklicken → Meldung mit **„Fertig“** schließen.
+   - **Systemeinstellungen → Datenschutz & Sicherheit** öffnen, ganz nach unten scrollen und
+     bei „Buchhaltung wurde blockiert“ auf **„Dennoch öffnen“** klicken, mit Passwort bestätigen.
+   - (Auf älteren macOS-Versionen genügt: Rechtsklick auf die App → **Öffnen** → **Öffnen**.)
+4. Ab dann: **Doppelklick auf „Buchhaltung“** – der Browser öffnet sich mit der Anwendung.
+   Ist der Browser-Tab geschlossen, öffnet ein weiterer Doppelklick ihn wieder.
+   Zum Beenden links unten auf **„Beenden“** klicken.
+
+Die Daten liegen auf dem Mac unter `~/Library/Application Support/Buchhaltung`
+(nicht in OneDrive, damit die Datenbank nicht beim Synchronisieren beschädigt wird).
+Sicherung: **Einstellungen → Datensicherung herunterladen** und die ZIP-Datei in OneDrive ablegen.
+
+Neue Versionen werden bei jeder Änderung automatisch gebaut; zum Aktualisieren einfach erneut
+herunterladen und die App in „Programme“ ersetzen – die Daten bleiben erhalten.
+
+## Start ohne App (für Entwicklung, Windows, Linux)
 
 Voraussetzung: [Python 3.10 oder neuer](https://www.python.org/downloads/).
-
-**Windows:** Doppelklick auf `start.bat`
-**macOS / Linux:** `./start.sh` im Terminal
-
-Beim ersten Start werden die benötigten Pakete installiert, danach öffnet sich der Browser
-mit <http://127.0.0.1:5000>.
-
-Manuell:
+Windows: `start.bat` doppelklicken · macOS/Linux: `sh start.sh`. Danach öffnet sich
+<http://127.0.0.1:8765>. Die Daten liegen dabei im Unterordner `data/`.
 
 ```bash
 python -m venv .venv
@@ -68,9 +88,9 @@ die Rechnungs-PDFs eintragen.
 
 ## Datensicherung
 
-Alle Daten liegen im Ordner `data/` (Datenbank + Belege). Diesen Ordner regelmäßig sichern,
-z. B. in OneDrive/SharePoint kopieren. **Er gehört nicht ins Git-Repository** (ist in
-`.gitignore` ausgeschlossen).
+**Einstellungen → Datensicherung herunterladen** erzeugt eine ZIP-Datei mit Datenbank und
+Belegen. Die Daten gehören **nicht ins Git-Repository** (`data/` ist in `.gitignore`
+ausgeschlossen).
 
 ## Optionen
 
@@ -88,6 +108,10 @@ Start im Netzwerk (z. B. auf einem Büro-Rechner): `python -m buchhaltung start 
 .venv/bin/pip install -r requirements-dev.txt
 .venv/bin/python -m pytest
 ```
+
+Mac-App bauen: `pyinstaller --noconfirm packaging/Buchhaltung.spec` (auf einem Mac). Das
+übernimmt der GitHub-Workflow `.github/workflows/mac-app.yml` automatisch und veröffentlicht
+das Ergebnis als Release.
 
 Aufbau: `buchhaltung/logik.py` (Rechnungslogik), `auswertung.py` (UVA, offene Posten,
 Umsatz), `importer.py` (Excel-Import), `pdf.py` (Rechnungs-PDF), `ansichten.py` (Web-Routen),

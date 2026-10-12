@@ -1,6 +1,10 @@
 """Web-Oberfläche (Flask-Routen)."""
+import sqlite3
 import tempfile
+import threading
 import uuid
+import zipfile
+from io import BytesIO
 from pathlib import Path
 
 from flask import (Blueprint, Response, current_app, flash, redirect, render_template, request,
@@ -49,6 +53,17 @@ def registrieren(app):
     def logout():
         session.clear()
         return redirect(url_for("uebersicht.start"))
+
+    @app.route("/lebenszeichen")
+    def lebenszeichen():
+        return Response("buchhaltung", mimetype="text/plain")
+
+    @app.route("/beenden", methods=["POST"])
+    def beenden():
+        funktion = current_app.config.get("BEENDEN")
+        if funktion:
+            threading.Timer(0.3, funktion).start()
+        return render_template("beendet.html")
 
     @app.errorhandler(FachFehler)
     def fachfehler(e):
@@ -564,6 +579,26 @@ def einstellungen_seite():
         flash("Einstellungen gespeichert.", "ok")
         return redirect(url_for("verwaltung.einstellungen_seite"))
     return render_template("einstellungen.html", w=werte)
+
+
+@verwaltung.route("/datensicherung")
+def datensicherung():
+    """ZIP mit konsistenter Kopie der Datenbank und allen Belegen."""
+    puffer = BytesIO()
+    with tempfile.TemporaryDirectory() as tmp:
+        kopie = Path(tmp) / "buchhaltung.db"
+        ziel = sqlite3.connect(kopie)
+        get_db().backup(ziel)
+        ziel.close()
+        with zipfile.ZipFile(puffer, "w", zipfile.ZIP_DEFLATED) as zf:
+            zf.write(kopie, "buchhaltung.db")
+            belege = Path(current_app.config["BELEGE"])
+            for datei in sorted(belege.rglob("*")):
+                if datei.is_file():
+                    zf.write(datei, f"belege/{datei.relative_to(belege).as_posix()}")
+    name = f"Buchhaltung-Sicherung-{heute().isoformat()}.zip"
+    return Response(puffer.getvalue(), mimetype="application/zip",
+                    headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
 
 @verwaltung.route("/import", methods=["GET", "POST"])
