@@ -70,9 +70,7 @@ Im Menü **Excel-Import** die Datei hochladen – oder im Terminal:
 
 Der Import ist wiederholbar (vorhandene Rechnungsnummern werden übersprungen). Dabei gilt:
 
-- **Spalte „bezahlt“ (AR):** In der bisherigen Datei steht `1` bei den jüngsten, noch
-  offenen Rechnungen. Der Import wertet daher `1` = *offen* und `0` = *bezahlt*. Falls das
-  umgekehrt gemeint war: `--offen-wert 0` bzw. die Auswahl im Import-Formular.
+- **Spalte „bezahlt“ (AR):** `1` = noch offen, `0` = bezahlt.
 - **Steuersatz:** wird aus Netto/Brutto erkannt. Enthält das Brutto zusätzlich Spesen ohne
   USt (z. B. Bahn/Hotel), entsteht eine eigene Position „Barauslagen (ohne USt)“.
 - **Datum der Eingangsrechnungen:** In den ER-Blättern ist die Datumsspalte oft nicht

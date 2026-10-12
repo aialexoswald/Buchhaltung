@@ -18,14 +18,10 @@
   {{ m.csrf() }}
   <div class="felder">
     <div class="feld breit"><label for="datei">Excel-Datei (.xlsx)</label><input id="datei" type="file" name="datei" accept=".xlsx" required></div>
-    <div class="feld breit"><label for="offen_wert">Bedeutung der Spalte „bezahlt“ in den AR-Blättern</label>
-      <select id="offen_wert" name="offen_wert">
-        <option value="1">1 = noch offen, 0 = bezahlt (so wirkt die bisherige Datei)</option>
-        <option value="0">0 = noch offen, 1 = bezahlt</option>
-      </select></div>
   </div>
   <ul class="klein leise">
     <li>Bereits vorhandene Rechnungsnummern werden übersprungen – der Import kann gefahrlos wiederholt werden.</li>
+    <li>Spalte „bezahlt“: 1 = noch offen, 0 = bezahlt.</li>
     <li>Eingangsrechnungen: Der Monat wird aus dem Monatsblock abgeleitet, wenn das Datum in Excel nicht passt.</li>
     <li>Der Steuersatz wird aus Netto/Brutto bzw. der MwSt-Spalte erkannt.</li>
   </ul>

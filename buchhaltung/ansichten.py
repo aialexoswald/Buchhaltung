@@ -612,6 +612,6 @@ def import_seite():
         with tempfile.TemporaryDirectory() as tmp:
             pfad = Path(tmp) / "import.xlsx"
             datei.save(pfad)
-            bericht = importieren(con, pfad, offen_wert=int(request.form.get("offen_wert", 1)))
+            bericht = importieren(con, pfad)
     leer = con.execute("SELECT COUNT(*) AS n FROM ausgangsrechnungen").fetchone()["n"] == 0
     return render_template("import.html", bericht=bericht, leer=leer)
