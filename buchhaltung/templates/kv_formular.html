@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% import "_makros.html" as m %}
+{% block titel %}{{ 'Kostenvoranschlag bearbeiten' if kv else 'Neuer Kostenvoranschlag' }}{% endblock %}
+{% block inhalt %}
+<div class="kopf"><div><h1>{{ 'Kostenvoranschlag bearbeiten' if kv else 'Neuer Kostenvoranschlag' }}</h1>
+  <div class="leise">Positionen so erfassen, wie sie im Angebot stehen (z. B. Pos. 1.4).</div></div></div>
+<form method="post">
+  {{ m.csrf() }}
+  <div class="karte">
+    <div class="felder">
+      <div class="feld"><label for="kunde">Kunde</label>
+        <input id="kunde" name="kunde" list="kundenliste" required value="{{ kv.kunde_name if kv else '' }}" autocomplete="off">
+        <datalist id="kundenliste">{% for k in kunden %}<option value="{{ k }}">{% endfor %}</datalist></div>
+      <div class="feld"><label for="datum">Datum</label><input id="datum" type="date" name="datum" required value="{{ kv.datum if kv else heute }}"></div>
+      <div class="feld breit"><label for="bezeichnung">Bezeichnung</label>
+        <input id="bezeichnung" name="bezeichnung" value="{{ kv.bezeichnung if kv else '' }}" placeholder="z. B. Kommunikationsstrategie Zentrum für Hirnforschung">
+        <div class="hilfe">Wird als Betreff für die Rechnungen vorgeschlagen.</div></div>
+    </div>
+  </div>
+  <div class="karte">
+    <h2>Positionen</h2>
+    <div class="tabelle-wrap">
+    <table class="positionen">
+      <thead><tr><th>Pos.-Nr.</th><th style="width:60%">Beschreibung</th><th>Betrag netto</th><th>USt</th><th></th></tr></thead>
+      <tbody id="positionen">
+      {% for p in (positionen or [None]) %}
+        <tr class="position">
+          <td><input type="hidden" name="pos_id" value="{{ p.id if p else '' }}"><input name="pos_nr" value="{{ p.posnr if p else '' }}" placeholder="1.1" style="width:5rem"></td>
+          <td><textarea name="pos_beschreibung" rows="1" style="min-height:2.2rem">{{ p.beschreibung if p else '' }}</textarea>
+            {% if p and p.verrechnet_cent %}<div class="hilfe">bereits {{ '%.0f' | format(p.verrechnet_prozent) }} % verrechnet</div>{% endif %}</td>
+          <td><input name="pos_betrag" inputmode="decimal" value="{{ p.betrag_cent | eingabe if p else '' }}" style="width:9rem"></td>
+          <td><select name="pos_ust">{% for s in saetze %}<option value="{{ s }}" {{ 'selected' if (p.ust_satz if p else 20) == s }}>{{ s }} %</option>{% endfor %}</select></td>
+          <td>{% if not (p and p.verrechnet_cent) %}<button type="button" class="klein entfernen" title="Position entfernen">✕</button>{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+      <tfoot><tr><td></td><td>Summe netto</td><td class="zahl" id="summe"></td><td colspan="2"></td></tr></tfoot>
+    </table>
+    </div>
+    <p><button type="button" id="hinzufuegen">+ Position</button></p>
+  </div>
+  <div class="karte"><label for="notiz">Notiz</label><textarea id="notiz" name="notiz">{{ kv.notiz if kv else '' }}</textarea></div>
+  <div class="aktionen">
+    <button class="primaer">Speichern</button>
+    <a class="knopf" href="{{ url_for('kv.detail', kv_id=kv.id) if kv else url_for('kv.liste') }}">Abbrechen</a>
+  </div>
+</form>
+{% endblock %}
+{% block skripte %}
+<script>
+(() => {
+  const body = document.getElementById('positionen');
+  const zahl = t => { t = (t || '').trim().replace(/\s|€/g, ''); if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.'); const n = parseFloat(t); return isNaN(n) ? 0 : n; };
+  const euro = n => n.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+  const rechnen = () => document.getElementById('summe').textContent =
+    euro([...body.querySelectorAll('[name=pos_betrag]')].reduce((s, el) => s + zahl(el.value), 0));
+  document.getElementById('hinzufuegen').addEventListener('click', () => {
+    const neu = body.querySelector('tr.position').cloneNode(true);
+    neu.querySelectorAll('input, textarea').forEach(el => el.value = '');
+    neu.querySelectorAll('.hilfe').forEach(el => el.remove());
+    if (!neu.querySelector('.entfernen')) neu.lastElementChild.innerHTML = '<button type="button" class="klein entfernen" title="Position entfernen">✕</button>';
+    body.appendChild(neu);
+    neu.querySelector('[name=pos_nr]').focus();
+  });
+  body.addEventListener('click', e => {
+    if (e.target.classList.contains('entfernen') && body.querySelectorAll('tr.position').length > 1) { e.target.closest('tr').remove(); rechnen(); }
+  });
+  body.addEventListener('input', rechnen);
+  rechnen();
+})();
+</script>
+{% endblock %}

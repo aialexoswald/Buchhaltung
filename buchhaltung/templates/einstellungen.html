@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% import "_makros.html" as m %}
+{% block titel %}Einstellungen{% endblock %}
+{% block inhalt %}
+<div class="kopf"><div><h1>Einstellungen</h1><div class="leise">Diese Angaben erscheinen auf den Rechnungs-PDFs.</div></div></div>
+<form method="post" enctype="multipart/form-data">
+  {{ m.csrf() }}
+  <div class="karte">
+    <h2>Firma</h2>
+    <div class="felder">
+      <div class="feld"><label for="firma_name">Firmenname</label><input id="firma_name" name="firma_name" value="{{ w.firma_name }}"></div>
+      <div class="feld"><label for="firma_uid">UID-Nummer</label><input id="firma_uid" name="firma_uid" value="{{ w.firma_uid }}" placeholder="ATU…"></div>
+      <div class="feld"><label for="firma_firmenbuch">Firmenbuchnummer (FN)</label><input id="firma_firmenbuch" name="firma_firmenbuch" value="{{ w.firma_firmenbuch }}" placeholder="378180y"></div>
+      <div class="feld"><label for="firma_wko">WKO Mitgl.Nr.</label><input id="firma_wko" name="firma_wko" value="{{ w.firma_wko }}"></div>
+      <div class="feld breit"><label for="firma_adresse">Adresse</label><textarea id="firma_adresse" name="firma_adresse" placeholder="Straße&#10;PLZ Ort">{{ w.firma_adresse }}</textarea></div>
+      <div class="feld breit"><label for="firma_zweigstelle">Zweigstelle</label><input id="firma_zweigstelle" name="firma_zweigstelle" value="{{ w.firma_zweigstelle }}"></div>
+      <div class="feld"><label for="firma_telefon">Telefon</label><input id="firma_telefon" name="firma_telefon" value="{{ w.firma_telefon }}"></div>
+      <div class="feld"><label for="firma_email">E-Mail</label><input id="firma_email" name="firma_email" value="{{ w.firma_email }}"></div>
+      <div class="feld"><label for="firma_web">Web</label><input id="firma_web" name="firma_web" value="{{ w.firma_web }}"></div>
+    </div>
+  </div>
+  <div class="karte">
+    <h2>Bank &amp; Zahlung</h2>
+    <div class="felder">
+      <div class="feld"><label for="bank_name">Bank</label><input id="bank_name" name="bank_name" value="{{ w.bank_name }}"></div>
+      <div class="feld"><label for="bank_iban">IBAN</label><input id="bank_iban" name="bank_iban" value="{{ w.bank_iban }}"></div>
+      <div class="feld"><label for="bank_bic">BIC</label><input id="bank_bic" name="bank_bic" value="{{ w.bank_bic }}"></div>
+      <div class="feld"><label for="zahlungsziel_tage">Zahlungsziel (Tage)</label><input id="zahlungsziel_tage" name="zahlungsziel_tage" inputmode="numeric" value="{{ w.zahlungsziel_tage }}"></div>
+    </div>
+  </div>
+  <div class="karte">
+    <h2>Rechnungstexte</h2>
+    <div class="felder">
+      <div class="feld breit"><label for="rechnung_zahlungstext">Zahlungstext</label>
+        <input id="rechnung_zahlungstext" name="rechnung_zahlungstext" value="{{ w.rechnung_zahlungstext }}">
+        <div class="hilfe">Erscheint unter dem Gesamtbetrag. Platzhalter {faellig} wird durch das Fälligkeitsdatum ersetzt, z. B. „Zahlbar bis {faellig}.“</div></div>
+      <div class="feld breit"><label for="rechnung_einleitung">Text vor den Positionen (optional)</label><textarea id="rechnung_einleitung" name="rechnung_einleitung">{{ w.rechnung_einleitung }}</textarea></div>
+      <div class="feld breit"><label for="rechnung_fusstext">Schlusstext (optional)</label><textarea id="rechnung_fusstext" name="rechnung_fusstext">{{ w.rechnung_fusstext }}</textarea></div>
+    </div>
+  </div>
+  <div class="karte">
+    <h2>Logo</h2>
+    <p class="leise klein">Standardmäßig wird das Futura-Logo verwendet.</p>
+    <div class="felder">
+      <div class="feld"><label for="logo">Anderes Logo hochladen (PNG/JPG)</label><input id="logo" type="file" name="logo" accept=".png,.jpg,.jpeg"></div>
+      <div class="feld"><label>&nbsp;</label><label class="check"><input type="checkbox" name="logo_zuruecksetzen" value="1"> auf Futura-Logo zurücksetzen</label></div>
+    </div>
+  </div>
+  <button class="primaer">Speichern</button>
+</form>
+<div class="karte" style="margin-top:1.5rem">
+  <h2>Datensicherung</h2>
+  <p class="leise">Lädt alle Daten (Rechnungen, Kunden, Einstellungen und Belege) als ZIP-Datei herunter.
+    Bitte regelmäßig ausführen und die Datei z. B. in OneDrive ablegen.</p>
+  {% if config.DESKTOP %}<p class="klein leise">Speicherort der Daten auf diesem Mac: {{ config.DATENVERZEICHNIS }}</p>{% endif %}
+  <a class="knopf" href="{{ url_for('verwaltung.datensicherung') }}">Datensicherung herunterladen</a>
+</div>
+{% endblock %}

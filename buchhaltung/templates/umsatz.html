@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% import "_makros.html" as m %}
+{% block titel %}Umsatz {{ jahr }}{% endblock %}
+{% block inhalt %}
+<div class="kopf">
+  <div><h1>Umsatz &amp; Vergleich</h1><div class="leise">Netto-Umsatz laut Ausgangsrechnungen (Stornos abgezogen)</div></div>
+  <form class="filter" method="get" style="margin:0">{{ m.jahr_auswahl(alle_jahre, jahr) }}</form>
+</div>
+
+<div class="karte">
+  <h2>Monatsumsatz {{ jahr }} gegenüber {{ jahr - 1 }}</h2>
+  {{ m.saeulen(diagramm) }}
+</div>
+
+<div class="karte" style="padding:0">
+  <h2 style="padding:1rem 1.25rem 0">Monatsvergleich der letzten Jahre</h2>
+  <div class="tabelle-wrap"><table>
+    <thead><tr><th>Monat</th>{% for j in jahre %}<th class="zahl">{{ j }}</th>{% endfor %}<th class="zahl">Δ Vorjahr</th><th class="zahl">{{ jahr }} kumuliert</th><th class="zahl">Δ kumuliert</th></tr></thead>
+    <tbody>
+    {% set ns = namespace(kum=0, kum_vj=0) %}
+    {% for i in range(12) %}
+      {% set akt = je_monat[jahr][i] %}{% set vj = je_monat[jahr - 1][i] if (jahr - 1) in je_monat else 0 %}
+      {% set ns.kum = ns.kum + akt %}{% set ns.kum_vj = ns.kum_vj + vj %}
+      <tr><td>{{ monate[i] }}</td>
+        {% for j in jahre %}<td class="zahl{{ ' leise' if j != jahr }}">{{ je_monat[j][i] | euro }}</td>{% endfor %}
+        <td class="zahl">{{ (akt - vj) | euro }}</td><td class="zahl">{{ ns.kum | euro }}</td><td class="zahl">{{ (ns.kum - ns.kum_vj) | euro }}</td></tr>
+    {% endfor %}
+    </tbody>
+    <tfoot><tr><td>Summe</td>{% for j in jahre %}<td class="zahl">{{ je_monat[j] | sum | euro }}</td>{% endfor %}<td colspan="3"></td></tr></tfoot>
+  </table></div>
+</div>
+
+<div class="karte" style="padding:0">
+  <h2 style="padding:1rem 1.25rem 0">Honorar vs. Fremdkosten {{ jahr }}</h2>
+  <div class="tabelle-wrap"><table>
+    <thead><tr><th>Monat</th><th class="zahl">Umsatz netto</th><th class="zahl">Fremdkosten weiterverrechenbar</th><th class="zahl">Kosten intern</th><th class="zahl">Ergebnis (Umsatz − alle Kosten)</th></tr></thead>
+    <tbody>
+    {% for i in range(12) %}
+      <tr><td>{{ monate[i] }}</td><td class="zahl">{{ je_monat[jahr][i] | euro }}</td><td class="zahl">{{ weiter[i] | euro }}</td><td class="zahl">{{ intern[i] | euro }}</td>
+        <td class="zahl">{{ (je_monat[jahr][i] - weiter[i] - intern[i]) | euro }}</td></tr>
+    {% endfor %}
+    </tbody>
+    <tfoot><tr><td>Summe</td><td class="zahl">{{ je_monat[jahr] | sum | euro }}</td><td class="zahl">{{ weiter | sum | euro }}</td><td class="zahl">{{ intern | sum | euro }}</td>
+      <td class="zahl">{{ (je_monat[jahr] | sum - weiter | sum - intern | sum) | euro }}</td></tr></tfoot>
+  </table></div>
+</div>
+
+<div class="zwei">
+  <div class="karte" style="padding:0">
+    <h2 style="padding:1rem 1.25rem 0">Umsatz je Kunde {{ jahr }}</h2>
+    <div class="tabelle-wrap"><table>
+      <thead><tr><th>Kunde</th><th class="zahl">Rechnungen</th><th class="zahl">Netto</th><th class="zahl">Anteil</th></tr></thead>
+      <tbody>
+      {% set gesamt = kunden | sum(attribute='netto') %}
+      {% for k in kunden %}
+        <tr><td><a href="{{ url_for('kunden.bearbeiten', kunde_id=k.id) }}">{{ k.name }}</a></td><td class="zahl">{{ k.anzahl }}</td><td class="zahl">{{ k.netto | euro }}</td>
+          <td class="zahl">{{ '%.1f' | format(k.netto / gesamt * 100 if gesamt else 0) }} %</td></tr>
+      {% else %}<tr><td colspan="4" class="leer">Keine Umsätze.</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+  </div>
+  <div class="karte" style="padding:0">
+    <h2 style="padding:1rem 1.25rem 0">Umsatz je Projekt {{ jahr }}</h2>
+    <div class="tabelle-wrap"><table>
+      <thead><tr><th>Projekt</th><th class="zahl">Rechnungen</th><th class="zahl">Netto</th></tr></thead>
+      <tbody>
+      {% for p in projekte %}<tr><td>{{ p.projekt }}</td><td class="zahl">{{ p.anzahl }}</td><td class="zahl">{{ p.netto | euro }}</td></tr>
+      {% else %}<tr><td colspan="3" class="leer">Keine Rechnungen mit Projekt.</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+  </div>
+</div>
+{% endblock %}
+{% block skripte %}{{ m.diagramm_skript() }}{% endblock %}

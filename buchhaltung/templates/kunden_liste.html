@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block titel %}Kunden{% endblock %}
+{% block inhalt %}
+<div class="kopf"><div><h1>Kunden</h1><div class="leise">{{ zeilen | length }} Kunden · sortiert nach letzter Rechnung</div></div></div>
+<div class="filter"><input type="search" id="suche" placeholder="Kunden filtern …" oninput="filtern(this.value)"></div>
+<div class="karte" style="padding:0">
+  <div class="tabelle-wrap"><table id="kunden">
+    <thead><tr><th>Name</th><th>UID</th><th class="zahl">Rechnungen</th><th class="zahl">Umsatz netto gesamt</th><th class="zahl">Offen</th><th>Letzte Rechnung</th></tr></thead>
+    <tbody>
+    {% for k in zeilen %}
+      <tr><td><a href="{{ url_for('kunden.bearbeiten', kunde_id=k.id) }}">{{ k.name }}</a>{% if not k.adresse %} <span class="badge neutral" title="Für Rechnungen wird eine Adresse benötigt">ohne Adresse</span>{% endif %}</td>
+        <td class="klein">{{ k.uid }}</td><td class="zahl">{{ k.anzahl }}</td><td class="zahl">{{ k.netto | euro }}</td>
+        <td class="zahl">{% if k.offen %}<span class="badge warn">{{ k.offen | euro }}</span>{% endif %}</td>
+        <td class="knapp">{{ k.zuletzt | datum }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}
+{% block skripte %}
+<script>
+function filtern(t) {
+  t = t.toLowerCase();
+  document.querySelectorAll('#kunden tbody tr').forEach(tr => tr.hidden = !tr.cells[0].textContent.toLowerCase().includes(t));
+}
+</script>
+{% endblock %}

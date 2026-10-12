@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% import "_makros.html" as m %}
+{% block titel %}{{ k.name }}{% endblock %}
+{% block inhalt %}
+<div class="kopf">
+  <div><h1>{{ k.name }}</h1><div class="leise">{{ rechnungen | length }} Rechnungen · netto {{ rechnungen | sum(attribute='netto_cent') | euro }}</div></div>
+  <div class="aktionen"><a class="knopf primaer" href="{{ url_for('ausgang.neu') }}">+ Rechnung</a></div>
+</div>
+<div class="zwei">
+  <form class="karte" method="post">
+    {{ m.csrf() }}
+    <h2>Stammdaten</h2>
+    <div class="felder">
+      <div class="feld breit"><label for="name">Name</label><input id="name" name="name" value="{{ k.name }}" required></div>
+      <div class="feld breit"><label for="adresse">Rechnungsadresse</label><textarea id="adresse" name="adresse" placeholder="Straße&#10;PLZ Ort">{{ k.adresse }}</textarea></div>
+      <div class="feld"><label for="uid">UID-Nummer</label><input id="uid" name="uid" value="{{ k.uid }}" placeholder="ATU…"></div>
+      <div class="feld"><label for="email">E-Mail</label><input id="email" type="email" name="email" value="{{ k.email }}"></div>
+      <div class="feld"><label for="zahlungsziel_tage">Zahlungsziel (Tage)</label><input id="zahlungsziel_tage" name="zahlungsziel_tage" inputmode="numeric" value="{{ k.zahlungsziel_tage if k.zahlungsziel_tage is not none else '' }}" placeholder="Standard"></div>
+      <div class="feld breit"><label for="notiz">Notiz</label><textarea id="notiz" name="notiz">{{ k.notiz }}</textarea></div>
+    </div>
+    <p><button class="primaer">Speichern</button></p>
+  </form>
+  <form class="karte" method="post" action="{{ url_for('kunden.zusammenfuehren', kunde_id=k.id) }}" data-bestaetigen="Alle Rechnungen dieses Kunden auf den gewählten Kunden übertragen und diesen Eintrag löschen?">
+    {{ m.csrf() }}
+    <h2>Doppelten Kunden zusammenführen</h2>
+    <p class="klein leise">Wenn derselbe Kunde unter mehreren Schreibweisen existiert (z. B. „APA“ und „APA-Comm GmbH“): Alle Rechnungen von <b>{{ k.name }}</b> werden auf den gewählten Kunden übertragen, danach wird dieser Eintrag gelöscht.</p>
+    <label for="nach_id">Zusammenführen mit</label>
+    <select id="nach_id" name="nach_id">{% for a in andere %}<option value="{{ a.id }}">{{ a.name }}</option>{% endfor %}</select>
+    <p><button>Zusammenführen</button></p>
+  </form>
+</div>
+<div class="karte" style="padding:0">
+  <div class="tabelle-wrap"><table>
+    <thead><tr><th>Nr.</th><th>Datum</th><th>Projekt</th><th class="zahl">Netto</th><th class="zahl">Brutto</th><th>Status</th></tr></thead>
+    <tbody>
+    {% for r in rechnungen %}
+      <tr><td class="knapp"><a href="{{ url_for('ausgang.detail', rechnung_id=r.id) }}">{{ r.nummer }}</a></td><td class="knapp">{{ r.datum | datum }}</td>
+        <td class="leise klein">{{ r.projekt }}</td><td class="zahl">{{ r.netto_cent | euro }}</td><td class="zahl">{{ r.brutto_cent | euro }}</td><td>{{ m.ar_status(r) }}</td></tr>
+    {% else %}<tr><td colspan="6" class="leer">Noch keine Rechnungen.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}

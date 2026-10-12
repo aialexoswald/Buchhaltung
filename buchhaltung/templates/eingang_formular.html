@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% import "_makros.html" as m %}
+{% block titel %}{{ 'Eingangsrechnung bearbeiten' if er else 'Neue Eingangsrechnung' }}{% endblock %}
+{% block inhalt %}
+<div class="kopf">
+  <div><h1>{{ 'Eingangsrechnung ' ~ er.jahr ~ '/' ~ (er.enr or '–') if er else 'Neue Eingangsrechnung' }}</h1>
+  {% if er and er.datum_geschaetzt %}<div class="meldung info" style="margin-top:.5rem">Datum aus Excel unbekannt – bitte das echte Rechnungsdatum eintragen.</div>{% endif %}</div>
+</div>
+<form method="post" enctype="multipart/form-data">
+  {{ m.csrf() }}
+  <div class="karte">
+    <div class="felder">
+      <div class="feld"><label for="datum">Rechnungsdatum</label><input id="datum" type="date" name="datum" required value="{{ er.datum if er else heute }}"></div>
+      <div class="feld"><label for="lieferant">Lieferant</label>
+        <input id="lieferant" name="lieferant" list="lieferanten" value="{{ er.lieferant if er else '' }}" required autocomplete="off">
+        <datalist id="lieferanten">{% for l in lieferanten %}<option value="{{ l }}">{% endfor %}</datalist></div>
+      <div class="feld"><label for="rechnungsnr_lieferant">Rechnungsnr. des Lieferanten</label><input id="rechnungsnr_lieferant" name="rechnungsnr_lieferant" value="{{ er.rechnungsnr_lieferant if er else '' }}"></div>
+      <div class="feld"><label for="kostenart">Kostenart</label>
+        <input id="kostenart" name="kostenart" list="kostenarten" value="{{ er.kostenart if er else '' }}" placeholder="z. B. Miete, Druck, Software">
+        <datalist id="kostenarten">{% for k in kostenarten %}<option value="{{ k }}">{% endfor %}</datalist></div>
+      <div class="feld breit"><label for="text">Text</label><input id="text" name="text" value="{{ er.text if er else '' }}"></div>
+    </div>
+  </div>
+  <div class="karte">
+    <h2>Betrag</h2>
+    <div class="felder">
+      <div class="feld"><label for="brutto">Rechnungsbetrag (brutto)</label><input id="brutto" name="brutto" inputmode="decimal" required value="{{ er.brutto_cent | eingabe if er else '' }}"></div>
+      <div class="feld"><label for="ust_satz">USt-Satz</label>
+        <select id="ust_satz" name="ust_satz">{% for s in saetze %}<option value="{{ s }}" {{ 'selected' if (er.ust_satz if er else 20) == s }}>{{ s }} %{{ ' (keine Vorsteuer)' if s == 0 }}</option>{% endfor %}</select></div>
+      <div class="feld"><label for="vorsteuer_manuell">Vorsteuer manuell (optional)</label>
+        <input id="vorsteuer_manuell" name="vorsteuer_manuell" inputmode="decimal" value="{{ er.vorsteuer_manuell_cent | eingabe if er and er.vorsteuer_manuell_cent is not none else '' }}">
+        <div class="hilfe">Nur bei gemischten Sätzen (z. B. Restaurant 10 % + 20 %)</div></div>
+      <div class="feld"><label>&nbsp;</label>
+        <label class="check"><input type="checkbox" name="reverse_charge" value="1" {{ 'checked' if er and er.reverse_charge }}> Reverse Charge (z. B. Google, Meta, EU-Lieferant)</label></div>
+    </div>
+    <p class="leise" id="vorschau"></p>
+  </div>
+  <div class="zwei">
+    <div class="karte">
+      <h2>Weiterverrechnung</h2>
+      <label for="weiter_an">Weiterverrechnen an (leer = intern / Futura)</label>
+      <input id="weiter_an" name="weiter_an" list="kundenliste" value="{{ er.kunde_name or '' if er else '' }}" autocomplete="off">
+      <datalist id="kundenliste">{% for k in kunden %}<option value="{{ k }}">{% endfor %}</datalist>
+      <p><label class="check"><input type="checkbox" name="weiter_erledigt" value="1" {{ 'checked' if er and er.weiter_erledigt }}> bereits weiterverrechnet</label></p>
+      {% if er and er.ar_nummer %}<p class="klein">Verrechnet mit Rechnung <a href="{{ url_for('ausgang.detail', rechnung_id=er.weiter_ar_id) }}">{{ er.ar_nummer }}</a>.</p>{% endif %}
+    </div>
+    <div class="karte">
+      <h2>Zahlung &amp; Beleg</h2>
+      <div class="felder">
+        <div class="feld"><label class="check"><input type="checkbox" name="bezahlt" value="1" {{ 'checked' if er and er.bezahlt }}> bezahlt / überwiesen</label></div>
+        <div class="feld"><label for="bezahlt_am">am</label><input id="bezahlt_am" type="date" name="bezahlt_am" value="{{ er.bezahlt_am or '' if er else '' }}"></div>
+        <div class="feld breit"><label for="beleg">Beleg (PDF/Bild)</label><input id="beleg" type="file" name="beleg" accept=".pdf,.png,.jpg,.jpeg">
+          {% if er and er.beleg_datei %}<div class="hilfe"><a href="{{ url_for('eingang.beleg', er_id=er.id) }}" target="_blank">Vorhandenen Beleg öffnen</a> – ein neuer Upload ersetzt ihn.</div>{% endif %}</div>
+      </div>
+    </div>
+  </div>
+  <div class="karte"><label for="notiz">Notiz</label><textarea id="notiz" name="notiz">{{ er.notiz if er else '' }}</textarea></div>
+  <div class="aktionen">
+    <button class="primaer">Speichern</button>
+    {% if not er %}<button name="weiter_erfassen" value="1">Speichern &amp; nächste erfassen</button>{% endif %}
+    <a class="knopf" href="{{ url_for('eingang.liste') }}">Abbrechen</a>
+  </div>
+</form>
+{% if er %}
+<form method="post" action="{{ url_for('eingang.loeschen', er_id=er.id) }}" style="margin-top:1.5rem" data-bestaetigen="Diese Eingangsrechnung löschen?">
+  {{ m.csrf() }}<button class="gefahr">Löschen</button></form>
+{% endif %}
+{% endblock %}
+{% block skripte %}
+<script>
+(() => {
+  const zahl = t => { t = (t || '').trim().replace(/\s|€/g, ''); if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.'); const n = parseFloat(t); return isNaN(n) ? null : n; };
+  const euro = n => n.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+  const f = id => document.querySelector(`[name=${id}]`);
+  function vorschau() {
+    const b = zahl(f('brutto').value), s = +f('ust_satz').value, rc = f('reverse_charge').checked, man = zahl(f('vorsteuer_manuell').value);
+    if (b === null) { document.getElementById('vorschau').textContent = ''; return; }
+    let netto, vst;
+    if (rc) { netto = b; vst = Math.round(b * (s || 20)) / 100; }
+    else if (man !== null) { vst = man; netto = b - man; }
+    else { netto = Math.round(b * 10000 / (100 + s)) / 100; vst = Math.round((b - netto) * 100) / 100; }
+    document.getElementById('vorschau').textContent = `Netto ${euro(netto)} · Vorsteuer ${euro(vst)}` + (rc ? ' (USt wird selbst geschuldet und gleichzeitig als Vorsteuer abgezogen)' : '');
+  }
+  document.querySelector('form').addEventListener('input', vorschau);
+  vorschau();
+})();
+</script>
+{% endblock %}

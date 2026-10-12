@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% import "_makros.html" as m %}
+{% block titel %}UVA {{ name }}{% endblock %}
+{% block inhalt %}
+<div class="kopf">
+  <div><h1>Umsatzsteuer – {{ name }}</h1><div class="leise">{{ von | datum }} – {{ bis | datum }} · Sollbesteuerung nach Rechnungsdatum</div></div>
+</div>
+<form class="filter" method="get">
+  {{ m.jahr_auswahl(jahre, jahr) }}
+  <div class="reiter">
+    {% for a, t in [('monat', 'Monat'), ('quartal', 'Quartal'), ('jahr', 'Jahr')] %}
+      <a class="{{ 'aktiv' if art == a }}" href="{{ url_for('berichte.uva', jahr=jahr, art=a) }}">{{ t }}</a>
+    {% endfor %}
+  </div>
+  <input type="hidden" name="art" value="{{ art }}">
+  {% if art != 'jahr' %}
+  <select name="nr" onchange="this.form.submit()" aria-label="Zeitraum">
+    {% for i, n, _ in perioden %}<option value="{{ i }}" {{ 'selected' if i == nr }}>{{ n }}</option>{% endfor %}
+  </select>
+  {% endif %}
+</form>
+
+<div class="zwei">
+  <div class="karte">
+    <h2>Umsatzsteuer</h2>
+    <div class="tabelle-wrap"><table>
+      <thead><tr><th></th><th class="zahl">Bemessungsgrundlage</th><th class="zahl">Steuer</th></tr></thead>
+      <tbody>
+        <tr><td>Gesamtbetrag der Lieferungen und Leistungen</td><td class="zahl">{{ daten.umsatz_gesamt | euro }}</td><td></td></tr>
+        <tr><td>davon steuerfrei / nicht steuerbar / Reverse Charge (0 %)</td><td class="zahl">{{ daten.steuerfrei | euro }}</td><td></td></tr>
+        {% for u in daten.umsaetze %}
+        <tr><td>Umsätze {{ u.satz }} % <span class="leise klein">(KZ {{ {20: '022', 10: '029', 13: '006'}[u.satz] }})</span></td><td class="zahl">{{ u.bemessung | euro }}</td><td class="zahl">{{ u.ust | euro }}</td></tr>
+        {% endfor %}
+        {% if daten.rc_bemessung %}
+        <tr><td>Steuerschuld Reverse Charge (Eingangsleistungen) <span class="leise klein">(KZ 057)</span></td><td class="zahl">{{ daten.rc_bemessung | euro }}</td><td class="zahl">{{ daten.rc_ust | euro }}</td></tr>
+        {% endif %}
+      </tbody>
+      <tfoot><tr><td colspan="2">Summe Umsatzsteuer</td><td class="zahl">{{ daten.ust_gesamt | euro }}</td></tr></tfoot>
+    </table></div>
+  </div>
+  <div class="karte">
+    <h2>Vorsteuer &amp; Ergebnis</h2>
+    <div class="tabelle-wrap"><table>
+      <tbody>
+        <tr><td>Vorsteuer aus Eingangsrechnungen <span class="leise klein">(KZ 060)</span></td><td class="zahl">{{ daten.vorsteuer | euro }}</td></tr>
+        {% if daten.rc_ust %}<tr><td>Vorsteuer Reverse Charge <span class="leise klein">(KZ 066)</span></td><td class="zahl">{{ daten.rc_ust | euro }}</td></tr>{% endif %}
+        <tr><td>Summe Vorsteuer</td><td class="zahl">{{ daten.vorsteuer_gesamt | euro }}</td></tr>
+      </tbody>
+      <tfoot><tr><td>{{ 'Zahllast' if daten.zahllast >= 0 else 'Gutschrift' }}</td><td class="zahl">{{ daten.zahllast | euro }}</td></tr></tfoot>
+    </table></div>
+    <p class="klein leise">Hilfsrechnung zur Kontrolle – bitte mit der Steuerberatung abstimmen. Grundlage sind die hier erfassten Rechnungen; Kennzahlen (KZ) beziehen sich auf das Formular U30.</p>
+  </div>
+</div>
+
+{% if art != 'jahr' %}
+<div class="karte" style="padding:0">
+  <h2 style="padding:1rem 1.25rem 0">Alle {{ 'Monate' if art == 'monat' else 'Quartale' }} {{ jahr }}</h2>
+  <div class="tabelle-wrap"><table>
+    <thead><tr><th>Zeitraum</th><th class="zahl">Umsatz netto</th><th class="zahl">USt</th><th class="zahl">Vorsteuer</th><th class="zahl">Zahllast</th></tr></thead>
+    <tbody>
+    {% for i, n, d in perioden %}
+      <tr><td><a href="{{ url_for('berichte.uva', jahr=jahr, art=art, nr=i) }}">{{ n }}</a></td><td class="zahl">{{ d.umsatz_gesamt | euro }}</td>
+        <td class="zahl">{{ d.ust_gesamt | euro }}</td><td class="zahl">{{ d.vorsteuer_gesamt | euro }}</td><td class="zahl">{{ d.zahllast | euro }}</td></tr>
+    {% endfor %}
+    </tbody>
+    <tfoot><tr><td>Summe</td>
+      <td class="zahl">{{ perioden | map(attribute=2) | sum(attribute='umsatz_gesamt') | euro }}</td>
+      <td class="zahl">{{ perioden | map(attribute=2) | sum(attribute='ust_gesamt') | euro }}</td>
+      <td class="zahl">{{ perioden | map(attribute=2) | sum(attribute='vorsteuer_gesamt') | euro }}</td>
+      <td class="zahl">{{ perioden | map(attribute=2) | sum(attribute='zahllast') | euro }}</td></tr></tfoot>
+  </table></div>
+</div>
+{% endif %}
+{% endblock %}

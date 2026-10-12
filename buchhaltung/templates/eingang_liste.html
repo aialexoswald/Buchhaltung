@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% import "_makros.html" as m %}
+{% block titel %}Eingangsrechnungen {{ jahr }}{% endblock %}
+{% block inhalt %}
+<div class="kopf">
+  <div><h1>Eingangsrechnungen</h1><div class="leise">{{ zeilen | length }} Belege · brutto {{ summe_brutto | euro }} · Vorsteuer {{ summe_vst | euro }}</div></div>
+  <div class="aktionen">
+    <a class="knopf" href="{{ url_for('berichte.export', jahr=jahr) }}">Excel-Export {{ jahr }}</a>
+    <a class="knopf primaer" href="{{ url_for('eingang.neu') }}">+ Neue Eingangsrechnung</a>
+  </div>
+</div>
+<form class="filter" method="get">
+  {{ m.jahr_auswahl(jahre, jahr) }}
+  <div class="reiter">
+    {% for wert, text in [('', 'Alle'), ('unbezahlt', 'Unbezahlt'), ('weiterverrechnen', 'Offen zur Weiterverrechnung'), ('intern', 'Intern')] %}
+      <a class="{{ 'aktiv' if filter == wert }}" href="{{ url_for('eingang.liste', jahr=jahr, filter=wert, q=suche) }}">{{ text }}</a>
+    {% endfor %}
+  </div>
+  <input type="hidden" name="filter" value="{{ filter }}">
+  <input type="search" name="q" value="{{ suche }}" placeholder="Suche Lieferant, Text, Kunde …">
+</form>
+<div class="karte" style="padding:0">
+  <div class="tabelle-wrap"><table>
+    <thead><tr><th>ENR</th><th>Datum</th><th>Lieferant</th><th>Text</th><th class="zahl">Brutto</th><th class="zahl">USt</th><th class="zahl">Netto</th><th class="zahl">Vorsteuer</th><th>Weiterverrechnung</th><th>Zahlung</th></tr></thead>
+    <tbody>
+    {% for e in zeilen %}
+      <tr>
+        <td class="knapp"><a href="{{ url_for('eingang.bearbeiten', er_id=e.id) }}">{{ e.enr or '–' }}</a></td>
+        <td class="knapp">{% if e.datum_geschaetzt %}<span title="Datum aus Excel unbekannt – nur Monat">{{ e.datum[5:7] }}/{{ e.datum[:4] }}</span>{% else %}{{ e.datum | datum }}{% endif %}</td>
+        <td><a href="{{ url_for('eingang.bearbeiten', er_id=e.id) }}" style="color:inherit">{{ e.lieferant or '—' }}</a>
+            {% if e.beleg_datei %} <a href="{{ url_for('eingang.beleg', er_id=e.id) }}" target="_blank" title="Beleg öffnen">📎</a>{% endif %}</td>
+        <td class="leise klein">{{ e.text }}</td>
+        <td class="zahl">{{ e.brutto_cent | euro }}</td>
+        <td class="zahl klein">{{ 'RC' if e.reverse_charge else e.ust_satz ~ ' %' }}</td>
+        <td class="zahl">{{ e.netto_cent | euro }}</td>
+        <td class="zahl">{{ e.vorsteuer_cent | euro }}</td>
+        <td class="klein">
+          {% if not e.weiter_kunde_id %}<span class="leise">intern</span>
+          {% elif e.weiter_erledigt %}<span class="badge gut">{{ e.kunde_name }}{% if e.ar_nummer %} · {{ e.ar_nummer }}{% endif %}</span>
+          {% else %}<span class="badge warn">an {{ e.kunde_name }}</span>{% endif %}
+        </td>
+        <td class="knapp">
+          <form class="inline" method="post" action="{{ url_for('eingang.bezahlt', er_id=e.id) }}">
+            {{ m.csrf() }}<input type="hidden" name="zurueck" value="{{ request.full_path }}">
+            {% if e.bezahlt %}<input type="hidden" name="bezahlt" value="0"><button class="klein" title="Als unbezahlt markieren"><span class="badge gut">bezahlt</span></button>
+            {% else %}<input type="hidden" name="bezahlt" value="1"><button class="klein" title="Heute als bezahlt markieren"><span class="badge warn">offen</span> ✓</button>{% endif %}
+          </form>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="10" class="leer">Keine Eingangsrechnungen gefunden.</td></tr>
+    {% endfor %}
+    </tbody>
+    {% if zeilen %}<tfoot><tr><td colspan="4">Summe</td><td class="zahl">{{ summe_brutto | euro }}</td><td></td><td class="zahl">{{ summe_netto | euro }}</td><td class="zahl">{{ summe_vst | euro }}</td><td colspan="2"></td></tr></tfoot>{% endif %}
+  </table></div>
+</div>
+{% endblock %}

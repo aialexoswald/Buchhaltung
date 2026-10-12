@@ -1,0 +1,73 @@
+{% macro csrf() %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endmacro %}
+
+{% macro ar_status(r) -%}
+  {%- if r.storniert -%}<span class="badge neutral">storniert</span>
+  {%- elif r.storno_von_id -%}<span class="badge neutral">Storno</span>
+  {%- elif r.bezahlt -%}<span class="badge gut">bezahlt</span>
+  {%- elif r.faellig_am and r.faellig_am < heute_iso() -%}<span class="badge kritisch">überfällig</span>
+  {%- else -%}<span class="badge warn">offen</span>
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro jahr_auswahl(jahre, jahr) %}
+  <select name="jahr" onchange="this.form.submit()" aria-label="Jahr">
+    {% for j in jahre %}<option value="{{ j }}" {{ 'selected' if j == jahr }}>{{ j }}</option>{% endfor %}
+  </select>
+{% endmacro %}
+
+{# Säulendiagramm: Monatsumsatz netto, zwei Jahre nebeneinander #}
+{% macro saeulen(d) %}
+{% set B = 720 %}{% set H = 240 %}{% set links = 56 %}{% set unten = 24 %}
+{% set breite = (B - links) / 12 %}{% set saeule = [((breite - 14) / 2) | round(0, 'floor'), 22] | min %}
+<div class="diagramm">
+  <div class="legende">
+    <span style="--farbe: var(--serie-1)">{{ d.serien[0][0] }}</span>
+    <span style="--farbe: var(--serie-2)">{{ d.serien[1][0] }}</span>
+  </div>
+  <svg viewBox="0 0 {{ B }} {{ H + unten }}" role="img" aria-label="Netto-Umsatz je Monat {{ d.serien[0][0] }} und {{ d.serien[1][0] }}">
+    {% for wert in d.linien %}
+      {% set y = H - (wert / d.oben * (H - 10)) %}
+      <line class="gitter" x1="{{ links }}" x2="{{ B }}" y1="{{ y }}" y2="{{ y }}"></line>
+      <text class="achse" x="{{ links - 8 }}" y="{{ y + 4 }}" text-anchor="end">{{ '{:,.0f}'.format(wert / 100).replace(',', '.') }}</text>
+    {% endfor %}
+    {% for m in range(12) %}
+      {% set x0 = links + m * breite %}
+      {% set mitte = x0 + breite / 2 %}
+      <g class="monat" data-monat="{{ d.monate[m] }}"
+         data-werte="{{ d.serien[0][1][m] | euro }}|{{ d.serien[1][1][m] | euro }}"
+         data-jahre="{{ d.serien[0][0] }}|{{ d.serien[1][0] }}">
+        <rect class="treffer" x="{{ x0 }}" y="0" width="{{ breite }}" height="{{ H }}" rx="4"></rect>
+        {% for s in range(2) %}
+          {% set wert = [d.serien[s][1][m], 0] | max %}
+          {% set h = wert / d.oben * (H - 10) %}
+          {% set x = mitte - saeule - 1 + s * (saeule + 2) %}
+          {% if h > 0 %}
+          <path class="s{{ s + 1 }}" d="M{{ x }},{{ H }} V{{ H - h + ([4, h] | min) }} q0,-{{ [4, h] | min }} {{ [4, h] | min }},-{{ [4, h] | min }} H{{ x + saeule - ([4, h] | min) }} q{{ [4, h] | min }},0 {{ [4, h] | min }},{{ [4, h] | min }} V{{ H }} Z"></path>
+          {% endif %}
+        {% endfor %}
+        <text class="achse" x="{{ mitte }}" y="{{ H + 17 }}" text-anchor="middle">{{ d.monate[m][:3] }}</text>
+      </g>
+    {% endfor %}
+    <line x1="{{ links }}" x2="{{ B }}" y1="{{ H }}" y2="{{ H }}" stroke="var(--text-3)"></line>
+  </svg>
+</div>
+{% endmacro %}
+
+{% macro diagramm_skript() %}
+<script>
+(() => {
+  const tip = document.getElementById('tooltip');
+  document.querySelectorAll('.diagramm g.monat').forEach(g => {
+    g.addEventListener('mousemove', e => {
+      const werte = g.dataset.werte.split('|'), jahre = g.dataset.jahre.split('|');
+      tip.innerHTML = '<b>' + g.dataset.monat + '</b>' + jahre.map((j, i) =>
+        `<div class="z"><span><i style="background:var(--serie-${i + 1})"></i>${j}</span><span>${werte[i]}</span></div>`).join('');
+      tip.style.display = 'block';
+      const x = Math.min(e.clientX + 14, window.innerWidth - tip.offsetWidth - 8);
+      tip.style.left = x + 'px'; tip.style.top = (e.clientY + 14) + 'px';
+    });
+    g.addEventListener('mouseleave', () => tip.style.display = 'none');
+  });
+})();
+</script>
+{% endmacro %}

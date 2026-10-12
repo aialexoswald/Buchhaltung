@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% import "_makros.html" as m %}
+{% block titel %}Ausgangsrechnungen {{ jahr }}{% endblock %}
+{% block inhalt %}
+<div class="kopf">
+  <div><h1>Ausgangsrechnungen</h1><div class="leise">{{ zeilen | length }} Rechnungen · netto {{ summe_netto | euro }}</div></div>
+  <div class="aktionen">
+    <a class="knopf" href="{{ url_for('berichte.export', jahr=jahr) }}">Excel-Export {{ jahr }}</a>
+    <a class="knopf primaer" href="{{ url_for('ausgang.neu') }}">+ Neue Rechnung</a>
+  </div>
+</div>
+<form class="filter" method="get">
+  {{ m.jahr_auswahl(jahre, jahr) }}
+  <div class="reiter">
+    {% for wert, text in [('', 'Alle'), ('offen', 'Offen'), ('bezahlt', 'Bezahlt')] %}
+      <a class="{{ 'aktiv' if status == wert }}" href="{{ url_for('ausgang.liste', jahr=jahr, status=wert, q=suche) }}">{{ text }}</a>
+    {% endfor %}
+  </div>
+  <input type="hidden" name="status" value="{{ status }}">
+  <input type="search" name="q" value="{{ suche }}" placeholder="Suche Kunde, Nr., Projekt …">
+</form>
+<div class="karte" style="padding:0">
+  <div class="tabelle-wrap"><table>
+    <thead><tr><th>Nr.</th><th>Datum</th><th>Kunde</th><th>Projekt / Notiz</th><th class="zahl">Netto</th><th class="zahl">Brutto</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+    {% for r in zeilen %}
+      <tr>
+        <td class="knapp"><a href="{{ url_for('ausgang.detail', rechnung_id=r.id) }}">{{ r.nummer }}</a></td>
+        <td class="knapp">{{ r.datum | datum }}</td>
+        <td><a href="{{ url_for('kunden.bearbeiten', kunde_id=r.kunde_id) }}" style="color:inherit">{{ r.kunde_name }}</a></td>
+        <td class="leise klein">{{ r.projekt }}{% if r.projekt and r.notiz %} · {% endif %}{{ r.notiz }}</td>
+        <td class="zahl">{{ r.netto_cent | euro }}</td>
+        <td class="zahl">{{ r.brutto_cent | euro }}</td>
+        <td class="knapp">{{ m.ar_status(r) }}</td>
+        <td class="knapp">
+          {% if not r.bezahlt and not r.storniert and not r.storno_von_id %}
+          <form class="inline" method="post" action="{{ url_for('ausgang.bezahlt', rechnung_id=r.id) }}">
+            {{ m.csrf() }}<input type="hidden" name="bezahlt_am" value="{{ heute_iso() }}">
+            <input type="hidden" name="zurueck" value="{{ request.full_path }}">
+            <button class="klein" title="Heute als bezahlt markieren">✓ bezahlt</button>
+          </form>
+          {% endif %}
+          <a class="knopf klein" href="{{ url_for('ausgang.pdf', rechnung_id=r.id) }}" target="_blank">PDF</a>
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="8" class="leer">Keine Rechnungen gefunden.</td></tr>
+    {% endfor %}
+    </tbody>
+    {% if zeilen %}<tfoot><tr><td colspan="4">Summe</td><td class="zahl">{{ summe_netto | euro }}</td><td class="zahl">{{ summe_brutto | euro }}</td><td colspan="2"></td></tr></tfoot>{% endif %}
+  </table></div>
+</div>
+{% endblock %}

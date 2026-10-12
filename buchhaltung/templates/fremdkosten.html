@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% import "_makros.html" as m %}
+{% block titel %}Fremdkosten weiterverrechnen{% endblock %}
+{% block inhalt %}
+<div class="kopf">
+  <div><h1>Fremdkosten weiterverrechnen</h1>
+  <div class="leise">Eingangsrechnungen, die einem Kunden zugeordnet, aber noch nicht weiterverrechnet sind.</div></div>
+</div>
+{% for (kunde_id, kunde), belege in gruppen.items() %}
+<form class="karte" method="post">
+  {{ m.csrf() }}
+  <h2><a href="{{ url_for('kunden.bearbeiten', kunde_id=kunde_id) }}" style="color:inherit">{{ kunde }}</a>
+    <span class="leise klein">· {{ belege | length }} Belege · netto {{ belege | sum(attribute='netto_cent') | euro }}</span></h2>
+  <div class="tabelle-wrap"><table>
+    <thead><tr><th class="knapp"><input type="checkbox" title="Alle auswählen" onclick="this.closest('table').querySelectorAll('tbody input').forEach(c => c.checked = this.checked)"></th>
+      <th>Datum</th><th>Lieferant</th><th>Text</th><th class="zahl">Netto</th><th class="zahl">Brutto</th></tr></thead>
+    <tbody>
+    {% for e in belege %}
+      <tr><td><input type="checkbox" name="er_id" value="{{ e.id }}" checked></td>
+        <td class="knapp">{{ e.datum | datum }}</td>
+        <td><a href="{{ url_for('eingang.bearbeiten', er_id=e.id) }}">{{ e.lieferant or '—' }}</a></td>
+        <td class="leise klein">{{ e.text }}</td>
+        <td class="zahl">{{ e.netto_cent | euro }}</td><td class="zahl">{{ e.brutto_cent | euro }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  <div class="aktionen" style="margin-top:1rem">
+    <label class="check">Aufschlag <input name="aufschlag" type="number" min="0" max="100" value="0" style="width:5rem"> %</label>
+    <button class="primaer" name="aktion" value="rechnung">Ausgangsrechnung aus Auswahl erstellen</button>
+    <button name="aktion" value="erledigt">Als bereits verrechnet markieren</button>
+  </div>
+</form>
+{% else %}
+<div class="karte leer">Alle zugeordneten Fremdkosten sind weiterverrechnet. 🎉<br>
+  <span class="klein">Fremdkosten ordnen Sie bei der Eingangsrechnung im Feld „Weiterverrechnen an“ einem Kunden zu.</span></div>
+{% endfor %}
+{% endblock %}

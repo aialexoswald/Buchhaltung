@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% import "_makros.html" as m %}
+{% block titel %}{{ kv.bezeichnung or 'Kostenvoranschlag' }}{% endblock %}
+{% block inhalt %}
+<div class="kopf">
+  <div>
+    <h1>{{ kv.bezeichnung or 'Kostenvoranschlag' }}</h1>
+    <div class="leise">{{ kv.kunde_name }} · {{ kv.datum | datum }} · Summe netto {{ summe | euro }} · verrechnet {{ verrechnet | euro }}
+      ({{ '%.0f' | format(verrechnet / summe * 100 if summe else 0) }} %)</div>
+  </div>
+  <div class="aktionen">
+    <a class="knopf" href="{{ url_for('kv.bearbeiten', kv_id=kv.id) }}">Bearbeiten</a>
+    <form class="inline" method="post" action="{{ url_for('kv.abschliessen', kv_id=kv.id) }}">{{ m.csrf() }}
+      <input type="hidden" name="abgeschlossen" value="{{ 0 if kv.abgeschlossen else 1 }}">
+      <button>{{ 'Wieder öffnen' if kv.abgeschlossen else 'Abschließen' }}</button></form>
+  </div>
+</div>
+{% if kv.notiz %}<p class="leise">{{ kv.notiz }}</p>{% endif %}
+
+<form method="post" id="abrechnung">
+  {{ m.csrf() }}
+  <div class="karte" style="padding:0">
+    <h2 style="padding:1rem 1.25rem 0">Rechnung erstellen</h2>
+    <p class="leise klein" style="padding:0 1.25rem">Je Position eintragen, wie viel Prozent jetzt verrechnet werden. 0 = Position kommt nicht auf die Rechnung.</p>
+    <div class="tabelle-wrap"><table>
+      <thead><tr><th>Pos.</th><th>Beschreibung</th><th class="zahl">KV netto</th><th class="zahl">Bisher verrechnet</th><th class="zahl">Jetzt %</th><th class="zahl">Jetzt netto</th></tr></thead>
+      <tbody>
+      {% for p in positionen %}
+        <tr data-betrag="{{ p.betrag_cent }}" data-rest="{{ '%.4f' | format(p.rest_prozent) }}">
+          <td class="knapp">{{ p.posnr }}</td>
+          <td style="white-space:pre-line">{{ p.beschreibung }}</td>
+          <td class="zahl">{{ p.betrag_cent | euro }}</td>
+          <td class="zahl">
+            {% if p.verrechnet_cent %}{{ p.verrechnet_cent | euro }}
+              {% if p.rest_prozent <= 0.001 %}<span class="badge gut">100 %</span>{% else %}<span class="badge warn">{{ '%g' | format(p.verrechnet_prozent | round(2)) }} %</span>{% endif %}
+            {% else %}<span class="leise">–</span>{% endif %}
+          </td>
+          <td class="zahl knapp">
+            {% if p.rest_prozent > 0.001 %}
+            <input name="prozent_{{ p.id }}" class="prozent" inputmode="decimal" value="0" style="width:5.5rem;text-align:right" aria-label="Prozent Pos. {{ p.posnr }}"> %
+            {% else %}<span class="leise klein">erledigt</span>{% endif %}
+          </td>
+          <td class="zahl jetzt"></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+      <tfoot><tr><td colspan="5">Summe dieser Rechnung (netto)</td><td class="zahl" id="summe"></td></tr></tfoot>
+    </table></div>
+    <div class="aktionen" style="padding:0 1.25rem 1rem">
+      <span class="leise klein">Schnell setzen:</span>
+      <button type="button" class="klein" data-alle="rest">Alles Offene</button>
+      <button type="button" class="klein" data-alle="50">alle 50 %</button>
+      <button type="button" class="klein" data-alle="0">alle 0 %</button>
+    </div>
+  </div>
+  <div class="karte">
+    <div class="felder">
+      <div class="feld"><label for="datum">Rechnungsdatum</label><input id="datum" type="date" name="datum" value="{{ heute }}" required></div>
+      <div class="feld"><label for="leistungszeitraum">Leistungszeitraum</label><input id="leistungszeitraum" name="leistungszeitraum" placeholder="z. B. September 2026"></div>
+      <div class="feld breit"><label for="betreff">Betreff (fett auf der Rechnung)</label><input id="betreff" name="betreff" value="{{ kv.bezeichnung }}"></div>
+    </div>
+    <p style="margin-bottom:0"><button class="primaer">Rechnung erstellen</button>
+      <span class="leise klein">Die Rechnung kann danach noch bearbeitet oder ergänzt werden.</span></p>
+  </div>
+</form>
+
+<div class="karte" style="padding:0">
+  <h2 style="padding:1rem 1.25rem 0">Rechnungen zu diesem Kostenvoranschlag</h2>
+  <div class="tabelle-wrap"><table>
+    <thead><tr><th>Nr.</th><th>Datum</th><th>Betreff</th><th class="zahl">Netto</th><th>Status</th></tr></thead>
+    <tbody>
+    {% for r in rechnungen %}
+      <tr><td class="knapp"><a href="{{ url_for('ausgang.detail', rechnung_id=r.id) }}">{{ r.nummer }}</a></td><td class="knapp">{{ r.datum | datum }}</td>
+        <td>{{ r.betreff or r.projekt }}</td><td class="zahl">{{ r.netto_cent | euro }}</td><td class="knapp">{{ m.ar_status(r) }}</td></tr>
+    {% else %}<tr><td colspan="5" class="leer">Noch keine Rechnungen.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% if not rechnungen %}
+<form method="post" action="{{ url_for('kv.loeschen', kv_id=kv.id) }}" data-bestaetigen="Kostenvoranschlag löschen?">{{ m.csrf() }}<button class="gefahr">Löschen</button></form>
+{% endif %}
+{% endblock %}
+{% block skripte %}
+<script>
+(() => {
+  const form = document.getElementById('abrechnung');
+  const zahl = t => { const n = parseFloat((t || '').replace(',', '.').replace('%', '')); return isNaN(n) ? 0 : n; };
+  const euro = n => n.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+  function rechnen() {
+    let summe = 0;
+    form.querySelectorAll('tbody tr').forEach(tr => {
+      const feld = tr.querySelector('.prozent');
+      const p = feld ? zahl(feld.value) : 0, rest = parseFloat(tr.dataset.rest);
+      const betrag = Math.round(tr.dataset.betrag * p / 100) / 100;
+      summe += betrag;
+      tr.querySelector('.jetzt').textContent = p ? euro(betrag) : '';
+      if (feld) feld.style.borderColor = (p < 0 || p > rest + 0.001) ? 'var(--kritisch)' : '';
+    });
+    document.getElementById('summe').textContent = euro(summe);
+  }
+  form.addEventListener('input', rechnen);
+  form.querySelectorAll('[data-alle]').forEach(b => b.addEventListener('click', () => {
+    form.querySelectorAll('tbody tr').forEach(tr => {
+      const feld = tr.querySelector('.prozent'); if (!feld) return;
+      const rest = parseFloat(tr.dataset.rest);
+      const wert = b.dataset.alle === 'rest' ? rest : Math.min(+b.dataset.alle, rest);
+      feld.value = String(Math.round(wert * 100) / 100).replace('.', ',');
+    });
+    rechnen();
+  }));
+  rechnen();
+})();
+</script>
+{% endblock %}

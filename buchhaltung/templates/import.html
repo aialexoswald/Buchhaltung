@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% import "_makros.html" as m %}
+{% block titel %}Excel-Import{% endblock %}
+{% block inhalt %}
+<div class="kopf"><div><h1>Excel-Import</h1><div class="leise">Bisherige Datei mit den Blättern AR_JJJJ und ER-JJJJ übernehmen.</div></div></div>
+{% if bericht %}
+<div class="karte">
+  <h2>Ergebnis</h2>
+  <p>{{ bericht.ar }} Ausgangsrechnungen und {{ bericht.er }} Eingangsrechnungen übernommen{% if bericht.uebersprungen %}, {{ bericht.uebersprungen }} bereits vorhandene übersprungen{% endif %}.</p>
+  {% if bericht.warnungen %}
+  <h3>Bitte prüfen ({{ bericht.warnungen | length }})</h3>
+  <ul class="klein">{% for w in bericht.warnungen %}<li>{{ w }}</li>{% endfor %}</ul>
+  {% endif %}
+  <p><a class="knopf primaer" href="{{ url_for('uebersicht.start') }}">Zur Übersicht</a></p>
+</div>
+{% endif %}
+<form class="karte" method="post" enctype="multipart/form-data">
+  {{ m.csrf() }}
+  <div class="felder">
+    <div class="feld breit"><label for="datei">Excel-Datei (.xlsx)</label><input id="datei" type="file" name="datei" accept=".xlsx" required></div>
+  </div>
+  <ul class="klein leise">
+    <li>Bereits vorhandene Rechnungsnummern werden übersprungen – der Import kann gefahrlos wiederholt werden.</li>
+    <li>Spalte „bezahlt“: 1 = noch offen, 0 = bezahlt.</li>
+    <li>Eingangsrechnungen: Der Monat wird aus dem Monatsblock abgeleitet, wenn das Datum in Excel nicht passt.</li>
+    <li>Der Steuersatz wird aus Netto/Brutto bzw. der MwSt-Spalte erkannt.</li>
+  </ul>
+  <button class="primaer">Importieren</button>
+</form>
+{% endblock %}

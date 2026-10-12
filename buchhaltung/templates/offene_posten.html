@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% import "_makros.html" as m %}
+{% block titel %}Offene Posten{% endblock %}
+{% block inhalt %}
+<div class="kopf"><div><h1>Offene Posten</h1><div class="leise">Stand {{ heute | datum }}</div></div></div>
+<div class="kacheln">
+  <div class="kachel"><div class="titel">Offene Forderungen (Kunden schulden uns)</div><div class="wert">{{ summe_f | euro }}</div><div class="unter">{{ forderungen | length }} Rechnungen</div></div>
+  <div class="kachel"><div class="titel">Davon überfällig</div><div class="wert">{{ forderungen | selectattr('tage_ueberfaellig', 'gt', 0) | sum(attribute='brutto_cent') | euro }}</div>
+    <div class="unter">{{ forderungen | selectattr('tage_ueberfaellig', 'gt', 0) | list | length }} Rechnungen</div></div>
+  <div class="kachel"><div class="titel">Offene Verbindlichkeiten (wir schulden)</div><div class="wert">{{ summe_v | euro }}</div><div class="unter">{{ verbindlichkeiten | length }} Eingangsrechnungen</div></div>
+</div>
+
+<div class="karte" style="padding:0">
+  <h2 style="padding:1rem 1.25rem 0">Forderungen</h2>
+  <div class="tabelle-wrap"><table>
+    <thead><tr><th>Nr.</th><th>Datum</th><th>Kunde</th><th>Fällig</th><th class="zahl">Brutto</th><th>Status</th><th></th></tr></thead>
+    <tbody>
+    {% for f in forderungen %}
+      <tr>
+        <td class="knapp"><a href="{{ url_for('ausgang.detail', rechnung_id=f.id) }}">{{ f.nummer }}</a></td>
+        <td class="knapp">{{ f.datum | datum }}</td>
+        <td>{{ f.kunde_name }}</td>
+        <td class="knapp">{{ f.faellig_am | datum }}</td>
+        <td class="zahl">{{ f.brutto_cent | euro }}</td>
+        <td class="knapp">
+          {% if f.tage_ueberfaellig > 30 %}<span class="badge kritisch">{{ f.tage_ueberfaellig }} Tage überfällig</span>
+          {% elif f.tage_ueberfaellig > 0 %}<span class="badge warn">{{ f.tage_ueberfaellig }} Tage überfällig</span>
+          {% else %}<span class="badge neutral">fällig in {{ -f.tage_ueberfaellig }} Tagen</span>{% endif %}
+        </td>
+        <td class="knapp">
+          <form class="zeile" method="post" action="{{ url_for('ausgang.bezahlt', rechnung_id=f.id) }}">
+            {{ m.csrf() }}<input type="hidden" name="zurueck" value="{{ request.full_path }}">
+            <input type="date" name="bezahlt_am" value="{{ heute }}" style="width:auto" aria-label="Zahlungsdatum">
+            <button class="klein">✓ bezahlt</button>
+          </form>
+        </td>
+      </tr>
+    {% else %}<tr><td colspan="7" class="leer">Keine offenen Forderungen.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</div>
+
+<div class="karte" style="padding:0">
+  <h2 style="padding:1rem 1.25rem 0">Unbezahlte Eingangsrechnungen</h2>
+  <div class="tabelle-wrap"><table>
+    <thead><tr><th>ENR</th><th>Datum</th><th>Lieferant</th><th>Text</th><th class="zahl">Brutto</th><th></th></tr></thead>
+    <tbody>
+    {% for e in verbindlichkeiten %}
+      <tr><td class="knapp"><a href="{{ url_for('eingang.bearbeiten', er_id=e.id) }}">{{ e.jahr }}/{{ e.enr or '–' }}</a></td>
+        <td class="knapp">{{ e.datum | datum }}</td><td>{{ e.lieferant }}</td><td class="leise klein">{{ e.text }}</td>
+        <td class="zahl">{{ e.brutto_cent | euro }}</td>
+        <td class="knapp"><form class="inline" method="post" action="{{ url_for('eingang.bezahlt', er_id=e.id) }}">
+          {{ m.csrf() }}<input type="hidden" name="bezahlt" value="1"><input type="hidden" name="zurueck" value="{{ request.full_path }}">
+          <button class="klein">✓ bezahlt</button></form></td></tr>
+    {% else %}<tr><td colspan="6" class="leer">Alles bezahlt.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}
