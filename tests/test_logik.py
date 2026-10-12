@@ -126,7 +126,8 @@ def test_kunden_zusammenfuehren(con):
 def test_pdf_nummer_und_dateiname():
     from buchhaltung.pdf import dateiname, laufnummer
     assert laufnummer("2026_100") == "100"
-    assert laufnummer("2026_007") == "7"
+    assert laufnummer("2026_007") == "007"
+    assert dateiname({"nummer": "2026_007"}) == "007_Futura_RE_2026.pdf"
     assert dateiname({"nummer": "2026_100"}) == "100_Futura_RE_2026.pdf"
 
 

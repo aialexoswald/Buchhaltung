@@ -47,9 +47,8 @@ def _menge(m):
 
 
 def laufnummer(nummer):
-    """'2026_100' → '100', '2026_007' → '7'."""
-    teil = nummer.split("_", 1)[-1]
-    return str(int(teil)) if teil.isdigit() else teil
+    """'2026_100' → '100', '2026_007' → '007' (dreistellig wie in der Rechnungsnummer)."""
+    return nummer.split("_", 1)[-1]
 
 
 def dateiname(rechnung):
