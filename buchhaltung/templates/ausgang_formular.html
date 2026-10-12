@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% import "_makros.html" as m %}
+{% set bearbeiten = r and not kopie %}
+{% block titel %}{{ 'Rechnung ' ~ r.nummer ~ ' bearbeiten' if bearbeiten else 'Neue Ausgangsrechnung' }}{% endblock %}
+{% block inhalt %}
+<div class="kopf">
+  <div>
+    <h1>{{ 'Rechnung ' ~ r.nummer ~ ' bearbeiten' if bearbeiten else 'Neue Ausgangsrechnung' }}</h1>
+    <div class="leise">{% if bearbeiten %}Die Rechnungsnummer bleibt unverändert.{% else %}Die Rechnungsnummer wird beim Speichern automatisch vergeben.{% endif %}</div>
+  </div>
+</div>
+{% if bearbeiten and (r.bezahlt or r.importiert) %}
+  <div class="meldung info">Achtung: Diese Rechnung wurde {{ 'bereits bezahlt' if r.bezahlt else 'aus Excel übernommen' }}. Änderungen an versendeten Rechnungen besser per Storno + neuer Rechnung durchführen.</div>
+{% endif %}
+<form method="post" id="rechnung">
+  {{ m.csrf() }}
+  <div class="karte">
+    <div class="felder">
+      <div class="feld"><label for="kunde">Kunde</label>
+        <input id="kunde" name="kunde" list="kundenliste" required value="{{ r.kunde_name if r else '' }}" autocomplete="off">
+        <datalist id="kundenliste">{% for k in kunden %}<option value="{{ k }}">{% endfor %}</datalist>
+        <div class="hilfe">Neue Namen werden als Kunde angelegt.</div>
+      </div>
+      <div class="feld"><label for="datum">Rechnungsdatum</label>
+        <input id="datum" type="date" name="datum" required value="{{ r.datum if bearbeiten else heute }}"></div>
+      <div class="feld"><label for="faellig_am">Fällig am</label>
+        <input id="faellig_am" type="date" name="faellig_am" value="{{ r.faellig_am if bearbeiten else '' }}">
+        <div class="hilfe">Leer = Rechnungsdatum + Zahlungsziel</div></div>
+      <div class="feld"><label for="leistungszeitraum">Leistungszeitraum</label>
+        <input id="leistungszeitraum" name="leistungszeitraum" placeholder="z. B. Oktober 2026" value="{{ r.leistungszeitraum if r else '' }}"></div>
+      <div class="feld"><label for="projekt">Projekt / Thema</label>
+        <input id="projekt" name="projekt" list="projektliste" value="{{ r.projekt if r else '' }}">
+        <datalist id="projektliste">{% for p in projekte %}<option value="{{ p }}">{% endfor %}</datalist></div>
+      <div class="feld"><label for="steuerhinweis">Steuerhinweis auf der Rechnung</label>
+        <select id="steuerhinweis" name="steuerhinweis">
+          {% set aktuell = r.steuerhinweis if r else '' %}
+          {% for h in steuerhinweise %}<option value="{{ h }}" {{ 'selected' if h == aktuell }}>{{ h or '— keiner —' }}</option>{% endfor %}
+          {% if aktuell not in steuerhinweise %}<option selected>{{ aktuell }}</option>{% endif %}
+        </select></div>
+    </div>
+  </div>
+
+  <div class="karte">
+    <h2>Positionen</h2>
+    <div class="tabelle-wrap">
+    <table class="positionen">
+      <thead><tr><th style="width:45%">Beschreibung</th><th>Menge</th><th>Einheit</th><th>Einzelpreis netto</th><th>USt</th><th class="zahl">Betrag</th><th></th></tr></thead>
+      <tbody id="positionen">
+        {% for p in (positionen or [None]) %}
+        <tr class="position">
+          <td><textarea name="pos_beschreibung" rows="1" style="min-height:2.2rem">{{ p.beschreibung if p else '' }}</textarea></td>
+          <td><input name="pos_menge" inputmode="decimal" value="{{ ('%g' | format(p.menge)).replace('.', ',') if p else '1' }}" style="width:5rem"></td>
+          <td><input name="pos_einheit" value="{{ p.einheit if p else '' }}" placeholder="Std." style="width:6rem"></td>
+          <td><input name="pos_preis" inputmode="decimal" value="{{ p.einzelpreis_cent | eingabe if p else '' }}" style="width:8rem"></td>
+          <td><select name="pos_ust">{% for s in saetze %}<option value="{{ s }}" {{ 'selected' if (p.ust_satz if p else 20) == s }}>{{ s }} %</option>{% endfor %}</select></td>
+          <td class="zahl betrag"></td>
+          <td><button type="button" class="klein entfernen" title="Position entfernen">✕</button></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    <p><button type="button" id="hinzufuegen">+ Position</button></p>
+    <div class="summenblock" id="summen"></div>
+  </div>
+
+  <div class="karte">
+    <label for="notiz">Interne Notiz (erscheint nicht auf der Rechnung)</label>
+    <textarea id="notiz" name="notiz">{{ r.notiz if r and not kopie else '' }}</textarea>
+  </div>
+  <div class="aktionen">
+    <button class="primaer">Speichern</button>
+    <a class="knopf" href="{{ url_for('ausgang.detail', rechnung_id=r.id) if bearbeiten else url_for('ausgang.liste') }}">Abbrechen</a>
+  </div>
+</form>
+{% endblock %}
+{% block skripte %}
+<script>
+(() => {
+  const body = document.getElementById('positionen');
+  const zahl = t => { t = (t || '').trim().replace(/\s|€/g, ''); if (t.includes(',')) t = t.replace(/\./g, '').replace(',', '.'); const n = parseFloat(t); return isNaN(n) ? 0 : n; };
+  const euro = n => n.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+  function rechnen() {
+    const jeSatz = {};
+    body.querySelectorAll('tr.position').forEach(tr => {
+      const netto = Math.round(zahl(tr.querySelector('[name=pos_menge]').value) * zahl(tr.querySelector('[name=pos_preis]').value) * 100) / 100;
+      tr.querySelector('.betrag').textContent = euro(netto);
+      const s = tr.querySelector('[name=pos_ust]').value;
+      jeSatz[s] = (jeSatz[s] || 0) + netto;
+    });
+    let netto = 0, ust = 0, zeilen = '';
+    Object.keys(jeSatz).sort((a, b) => b - a).forEach(s => {
+      netto += jeSatz[s];
+      const u = Math.round(jeSatz[s] * s) / 100;
+      ust += u;
+      if (+s) zeilen += `<div><span>USt ${s} %</span><span>${euro(u)}</span></div>`;
+    });
+    document.getElementById('summen').innerHTML =
+      `<div><span>Netto</span><span>${euro(netto)}</span></div>${zeilen}<div class="gesamt"><span>Gesamt</span><span>${euro(netto + ust)}</span></div>`;
+  }
+  document.getElementById('hinzufuegen').addEventListener('click', () => {
+    const neu = body.querySelector('tr.position').cloneNode(true);
+    neu.querySelectorAll('input, textarea').forEach(el => el.value = el.name === 'pos_menge' ? '1' : '');
+    neu.querySelector('select').value = body.querySelector('tr.position:last-child select').value;
+    body.appendChild(neu);
+    neu.querySelector('textarea').focus();
+    rechnen();
+  });
+  body.addEventListener('click', e => {
+    if (e.target.classList.contains('entfernen') && body.querySelectorAll('tr.position').length > 1) {
+      e.target.closest('tr').remove(); rechnen();
+    }
+  });
+  body.addEventListener('input', rechnen);
+  body.addEventListener('change', rechnen);
+  rechnen();
+})();
+</script>
+{% endblock %}

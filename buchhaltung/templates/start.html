@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% import "_makros.html" as m %}
+{% block titel %}Übersicht{% endblock %}
+{% block inhalt %}
+<div class="kopf">
+  <div><h1>Übersicht</h1><div class="leise">Stand {{ heute_iso() | datum }}</div></div>
+  <div class="aktionen">
+    <a class="knopf primaer" href="{{ url_for('ausgang.neu') }}">+ Ausgangsrechnung</a>
+    <a class="knopf" href="{{ url_for('eingang.neu') }}">+ Eingangsrechnung</a>
+  </div>
+</div>
+
+<div class="kacheln">
+  <a class="kachel" href="{{ url_for('berichte.umsatz') }}">
+    <div class="titel">Umsatz netto {{ jahr }} (Jänner–{{ monat_name }})</div>
+    <div class="wert">{{ bisher | euro }}</div>
+    <div class="unter">
+      Vorjahr gleicher Zeitraum: {{ vorjahr_bisher | euro }}
+      {% if vorjahr_bisher %}({{ '%+.0f' | format((bisher / vorjahr_bisher - 1) * 100) }} %){% endif %}
+    </div>
+  </a>
+  <a class="kachel" href="{{ url_for('berichte.offene_posten') }}">
+    <div class="titel">Offene Forderungen</div>
+    <div class="wert">{{ forderungen_summe | euro }}</div>
+    <div class="unter">{{ forderungen | length }} Rechnungen
+      {% if ueberfaellig %}· <span class="badge kritisch">{{ ueberfaellig | length }} überfällig · {{ ueberfaellig_summe | euro }}</span>{% endif %}
+    </div>
+  </a>
+  <a class="kachel" href="{{ url_for('eingang.fremdkosten') }}">
+    <div class="titel">Fremdkosten noch nicht weiterverrechnet</div>
+    <div class="wert">{{ fremd_summe | euro }}</div>
+    <div class="unter">{{ fremd_anzahl }} Belege (netto)</div>
+  </a>
+  <a class="kachel" href="{{ url_for('berichte.uva') }}">
+    <div class="titel">UVA {{ uva_name }}</div>
+    <div class="wert">{{ uva.zahllast | euro }}</div>
+    <div class="unter">{{ 'Zahllast' if uva.zahllast >= 0 else 'Gutschrift' }} · USt {{ uva.ust_gesamt | euro }} − VSt {{ uva.vorsteuer_gesamt | euro }}</div>
+  </a>
+  <a class="kachel" href="{{ url_for('eingang.liste', filter='unbezahlt') }}">
+    <div class="titel">Unbezahlte Eingangsrechnungen</div>
+    <div class="wert">{{ verbindlichkeiten_summe | euro }}</div>
+    <div class="unter">{{ verbindlichkeiten_anzahl }} Belege</div>
+  </a>
+</div>
+
+<div class="karte">
+  <h2>Netto-Umsatz je Monat</h2>
+  {{ m.saeulen(diagramm) }}
+  <p class="klein leise">Die Monatswerte als Tabelle finden Sie unter <a href="{{ url_for('berichte.umsatz') }}">Umsatz &amp; Vergleich</a>.</p>
+</div>
+
+<div class="zwei">
+  <div class="karte">
+    <h2>Überfällige Rechnungen</h2>
+    {% if ueberfaellig %}
+    <div class="tabelle-wrap"><table>
+      <thead><tr><th>Nr.</th><th>Kunde</th><th class="zahl">Brutto</th><th class="zahl">Tage</th></tr></thead>
+      <tbody>
+      {% for f in ueberfaellig[:8] %}
+        <tr><td><a href="{{ url_for('ausgang.detail', rechnung_id=f.id) }}">{{ f.nummer }}</a></td><td>{{ f.kunde_name }}</td>
+            <td class="zahl">{{ f.brutto_cent | euro }}</td><td class="zahl">{{ f.tage_ueberfaellig }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+    {% if ueberfaellig | length > 8 %}<p class="klein"><a href="{{ url_for('berichte.offene_posten') }}">Alle {{ ueberfaellig | length }} anzeigen →</a></p>{% endif %}
+    {% else %}<p class="leise">Keine überfälligen Rechnungen.</p>{% endif %}
+  </div>
+  <div class="karte">
+    <h2>Zuletzt erstellt</h2>
+    <div class="tabelle-wrap"><table>
+      <thead><tr><th>Nr.</th><th>Kunde</th><th class="zahl">Netto</th><th></th></tr></thead>
+      <tbody>
+      {% for r in letzte %}
+        <tr><td><a href="{{ url_for('ausgang.detail', rechnung_id=r.id) }}">{{ r.nummer }}</a></td><td>{{ r.kunde_name }}</td>
+            <td class="zahl">{{ r.netto_cent | euro }}</td><td>{{ m.ar_status(r) }}</td></tr>
+      {% else %}<tr><td colspan="4" class="leer">Noch keine Rechnungen – <a href="{{ url_for('verwaltung.import_seite') }}">Excel-Datei importieren</a>?</td></tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+  </div>
+</div>
+
+{% if hinweise %}
+<div class="karte">
+  <h2>Bitte prüfen</h2>
+  <ul>
+  {% for text, ziel in hinweise[:12] %}
+    <li><a href="{{ url_for(ziel[0], **ziel[1]) }}">{{ text }}</a></li>
+  {% endfor %}
+  </ul>
+  {% if hinweise | length > 12 %}<p class="klein leise">… und {{ hinweise | length - 12 }} weitere.</p>{% endif %}
+</div>
+{% endif %}
+{% endblock %}
+{% block skripte %}{{ m.diagramm_skript() }}{% endblock %}

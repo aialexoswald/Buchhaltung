@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Anmelden · Buchhaltung</title><link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"></head>
+<body><main style="max-width:360px;margin:12vh auto">
+  {% with meldungen = get_flashed_messages(with_categories=true) %}{% for art, text in meldungen %}<div class="meldung {{ art }}">{{ text }}</div>{% endfor %}{% endwith %}
+  <form class="karte" method="post"><h1>Buchhaltung</h1>
+    <label for="passwort">Passwort</label><input id="passwort" type="password" name="passwort" autofocus required>
+    <p><button class="primaer">Anmelden</button></p></form>
+</main></body></html>

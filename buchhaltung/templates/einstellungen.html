@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% import "_makros.html" as m %}
+{% block titel %}Einstellungen{% endblock %}
+{% block inhalt %}
+<div class="kopf"><div><h1>Einstellungen</h1><div class="leise">Diese Angaben erscheinen auf den Rechnungs-PDFs.</div></div></div>
+<form method="post">
+  {{ m.csrf() }}
+  <div class="karte">
+    <h2>Firma</h2>
+    <div class="felder">
+      <div class="feld"><label for="firma_name">Firmenname</label><input id="firma_name" name="firma_name" value="{{ w.firma_name }}"></div>
+      <div class="feld"><label for="firma_uid">UID-Nummer</label><input id="firma_uid" name="firma_uid" value="{{ w.firma_uid }}" placeholder="ATU…"></div>
+      <div class="feld"><label for="firma_firmenbuch">Firmenbuch</label><input id="firma_firmenbuch" name="firma_firmenbuch" value="{{ w.firma_firmenbuch }}" placeholder="FN 123456a, HG Wien"></div>
+      <div class="feld breit"><label for="firma_adresse">Adresse</label><textarea id="firma_adresse" name="firma_adresse" placeholder="Straße&#10;PLZ Ort">{{ w.firma_adresse }}</textarea></div>
+      <div class="feld"><label for="firma_telefon">Telefon</label><input id="firma_telefon" name="firma_telefon" value="{{ w.firma_telefon }}"></div>
+      <div class="feld"><label for="firma_email">E-Mail</label><input id="firma_email" name="firma_email" value="{{ w.firma_email }}"></div>
+      <div class="feld"><label for="firma_web">Web</label><input id="firma_web" name="firma_web" value="{{ w.firma_web }}"></div>
+    </div>
+  </div>
+  <div class="karte">
+    <h2>Bank &amp; Zahlung</h2>
+    <div class="felder">
+      <div class="feld"><label for="bank_name">Bank</label><input id="bank_name" name="bank_name" value="{{ w.bank_name }}"></div>
+      <div class="feld"><label for="bank_iban">IBAN</label><input id="bank_iban" name="bank_iban" value="{{ w.bank_iban }}"></div>
+      <div class="feld"><label for="bank_bic">BIC</label><input id="bank_bic" name="bank_bic" value="{{ w.bank_bic }}"></div>
+      <div class="feld"><label for="zahlungsziel_tage">Zahlungsziel (Tage)</label><input id="zahlungsziel_tage" name="zahlungsziel_tage" inputmode="numeric" value="{{ w.zahlungsziel_tage }}"></div>
+    </div>
+  </div>
+  <div class="karte">
+    <h2>Rechnungstexte</h2>
+    <label for="rechnung_einleitung">Einleitungstext</label><textarea id="rechnung_einleitung" name="rechnung_einleitung">{{ w.rechnung_einleitung }}</textarea>
+    <label for="rechnung_fusstext" style="margin-top:.8rem">Schlusstext</label><textarea id="rechnung_fusstext" name="rechnung_fusstext">{{ w.rechnung_fusstext }}</textarea>
+  </div>
+  <button class="primaer">Speichern</button>
+</form>
+{% endblock %}

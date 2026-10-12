@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% import "_makros.html" as m %}
+{% block titel %}Rechnung {{ r.nummer }}{% endblock %}
+{% block inhalt %}
+<div class="kopf">
+  <div>
+    <h1>{{ 'Stornorechnung' if r.storno_von_id else 'Rechnung' }} {{ r.nummer }} {{ m.ar_status(r) }}</h1>
+    <div class="leise"><a href="{{ url_for('kunden.bearbeiten', kunde_id=r.kunde_id) }}">{{ r.kunde_name }}</a> · {{ r.datum | datum }}{% if r.projekt %} · {{ r.projekt }}{% endif %}</div>
+  </div>
+  <div class="aktionen">
+    <a class="knopf primaer" href="{{ url_for('ausgang.pdf', rechnung_id=r.id) }}" target="_blank">PDF anzeigen</a>
+    <a class="knopf" href="{{ url_for('ausgang.bearbeiten', rechnung_id=r.id) }}">Bearbeiten</a>
+    <a class="knopf" href="{{ url_for('ausgang.neu', kopie=r.id) }}">Als Vorlage kopieren</a>
+  </div>
+</div>
+
+{% if r.storno_von_id %}<div class="meldung info">Storno zu Rechnung <a href="{{ url_for('ausgang.detail', rechnung_id=r.storno_von_id) }}">{{ r.storno_von_nummer }}</a>.</div>{% endif %}
+{% if r.storniert %}<div class="meldung info">Diese Rechnung wurde storniert{% if r.storno_nummer %} (Storno: {{ r.storno_nummer }}){% endif %}.</div>{% endif %}
+
+<div class="zwei">
+  <div class="karte">
+    <h2>Zahlung</h2>
+    <p>
+      Brutto <b>{{ r.brutto_cent | euro }}</b> · fällig am {{ r.faellig_am | datum }}<br>
+      {% if r.bezahlt %}Bezahlt{% if r.bezahlt_am %} am {{ r.bezahlt_am | datum }}{% endif %}.{% else %}Noch offen.{% endif %}
+    </p>
+    {% if not r.storniert and not r.storno_von_id %}
+      {% if r.bezahlt %}
+      <form method="post" action="{{ url_for('ausgang.bezahlt', rechnung_id=r.id) }}">{{ m.csrf() }}
+        <button>Wieder auf „offen“ setzen</button></form>
+      {% else %}
+      <form class="zeile" method="post" action="{{ url_for('ausgang.bezahlt', rechnung_id=r.id) }}">{{ m.csrf() }}
+        <div><label for="bezahlt_am">Zahlungseingang am</label><input id="bezahlt_am" type="date" name="bezahlt_am" value="{{ heute }}" required></div>
+        <button class="primaer">Als bezahlt markieren</button>
+      </form>
+      {% endif %}
+    {% endif %}
+  </div>
+  <div class="karte">
+    <h2>Details</h2>
+    <p class="klein">
+      {% if r.leistungszeitraum %}Leistungszeitraum: {{ r.leistungszeitraum }}<br>{% endif %}
+      {% if r.steuerhinweis %}Steuerhinweis: {{ r.steuerhinweis }}<br>{% endif %}
+      {% if r.notiz %}Notiz: {{ r.notiz }}<br>{% endif %}
+      {% if r.importiert %}<span class="leise">Aus der Excel-Datei übernommen.</span>{% endif %}
+    </p>
+    {% if fremd %}
+      <h3>Weiterverrechnete Fremdkosten</h3>
+      <ul class="klein">{% for e in fremd %}<li><a href="{{ url_for('eingang.bearbeiten', er_id=e.id) }}">{{ e.lieferant }} {{ e.text }}</a> – {{ e.netto_cent | euro }} netto</li>{% endfor %}</ul>
+    {% endif %}
+  </div>
+</div>
+
+<div class="karte">
+  <h2>Positionen</h2>
+  <div class="tabelle-wrap"><table>
+    <thead><tr><th>Pos.</th><th>Beschreibung</th><th class="zahl">Menge</th><th class="zahl">Einzelpreis</th><th class="zahl">USt</th><th class="zahl">Betrag</th></tr></thead>
+    <tbody>
+    {% for p in positionen %}
+      <tr><td class="knapp">{{ p.pos }}</td><td style="white-space:pre-line">{{ p.beschreibung }}</td>
+          <td class="zahl">{{ ('%g' | format(p.menge)).replace('.', ',') }} {{ p.einheit }}</td>
+          <td class="zahl">{{ p.einzelpreis_cent | euro }}</td><td class="zahl">{{ p.ust_satz }} %</td><td class="zahl">{{ p.netto_cent | euro }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  <div class="summenblock" style="margin-top:1rem">
+    <div><span>Netto</span><span>{{ r.netto_cent | euro }}</span></div>
+    {% for satz, (netto, ust) in saetze.items() if satz %}<div><span>USt {{ satz }} % von {{ netto | euro }}</span><span>{{ ust | euro }}</span></div>{% endfor %}
+    <div class="gesamt"><span>Gesamt</span><span>{{ r.brutto_cent | euro }}</span></div>
+  </div>
+</div>
+
+{% if not r.storniert and not r.storno_von_id %}
+<div class="aktionen">
+  <form method="post" action="{{ url_for('ausgang.stornieren', rechnung_id=r.id) }}" data-bestaetigen="Stornorechnung zu {{ r.nummer }} erstellen?">
+    {{ m.csrf() }}<button class="gefahr">Stornieren</button></form>
+  <form method="post" action="{{ url_for('ausgang.loeschen', rechnung_id=r.id) }}" data-bestaetigen="Rechnung {{ r.nummer }} endgültig löschen? Das geht nur bei der zuletzt erstellten Rechnung.">
+    {{ m.csrf() }}<button class="gefahr">Löschen</button></form>
+</div>
+{% endif %}
+{% endblock %}
