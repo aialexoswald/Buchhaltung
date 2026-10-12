@@ -60,6 +60,10 @@ def _migrieren(con):
     spalten = {r["name"] for r in con.execute("PRAGMA table_info(ausgangsrechnungen)")}
     if "betreff" not in spalten:
         con.execute("ALTER TABLE ausgangsrechnungen ADD COLUMN betreff TEXT NOT NULL DEFAULT ''")
+    spalten = {r["name"] for r in con.execute("PRAGMA table_info(ar_positionen)")}
+    if "kv_position_id" not in spalten:
+        con.execute("ALTER TABLE ar_positionen ADD COLUMN kv_position_id INTEGER "
+                    "REFERENCES kv_positionen (id) ON DELETE SET NULL")
 
 
 def get_db():

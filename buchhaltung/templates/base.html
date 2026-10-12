@@ -14,6 +14,7 @@
     <a class="link {{ 'aktiv' if ep == 'uebersicht.start' }}" href="{{ url_for('uebersicht.start') }}">Übersicht</a>
     <div class="gruppe">Rechnungen</div>
     <a class="link {{ 'aktiv' if ep.startswith('ausgang.') }}" href="{{ url_for('ausgang.liste') }}">Ausgangsrechnungen</a>
+    <a class="link {{ 'aktiv' if ep.startswith('kv.') }}" href="{{ url_for('kv.liste') }}">Kostenvoranschläge</a>
     <a class="link {{ 'aktiv' if ep.startswith('eingang.') and ep != 'eingang.fremdkosten' }}" href="{{ url_for('eingang.liste') }}">Eingangsrechnungen</a>
     <a class="link {{ 'aktiv' if ep == 'eingang.fremdkosten' }}" href="{{ url_for('eingang.fremdkosten') }}">Fremdkosten weiterverrechnen</a>
     <a class="link {{ 'aktiv' if ep == 'berichte.offene_posten' }}" href="{{ url_for('berichte.offene_posten') }}">Offene Posten</a>

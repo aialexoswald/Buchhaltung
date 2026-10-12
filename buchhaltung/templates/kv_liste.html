@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block titel %}Kostenvoranschläge{% endblock %}
+{% block inhalt %}
+<div class="kopf">
+  <div><h1>Kostenvoranschläge</h1><div class="leise">Angebote erfassen und je Position anteilig (0–100 %) abrechnen.</div></div>
+  <div class="aktionen"><a class="knopf primaer" href="{{ url_for('kv.neu') }}">+ Neuer Kostenvoranschlag</a></div>
+</div>
+<div class="karte" style="padding:0">
+  <div class="tabelle-wrap"><table>
+    <thead><tr><th>Datum</th><th>Kunde</th><th>Bezeichnung</th><th class="zahl">Summe netto</th><th class="zahl">Verrechnet</th><th class="zahl">Offen</th><th>Status</th></tr></thead>
+    <tbody>
+    {% for kv in zeilen %}
+      {% set anteil = (kv.verrechnet_cent / kv.summe_cent * 100) if kv.summe_cent else 0 %}
+      <tr>
+        <td class="knapp">{{ kv.datum | datum }}</td>
+        <td>{{ kv.kunde_name }}</td>
+        <td><a href="{{ url_for('kv.detail', kv_id=kv.id) }}">{{ kv.bezeichnung or 'ohne Bezeichnung' }}</a></td>
+        <td class="zahl">{{ kv.summe_cent | euro }}</td>
+        <td class="zahl">{{ kv.verrechnet_cent | euro }} <span class="leise klein">({{ '%.0f' | format(anteil) }} %)</span></td>
+        <td class="zahl">{{ (kv.summe_cent - kv.verrechnet_cent) | euro }}</td>
+        <td class="knapp">
+          {% if kv.abgeschlossen %}<span class="badge neutral">abgeschlossen</span>
+          {% elif kv.verrechnet_cent >= kv.summe_cent and kv.summe_cent %}<span class="badge gut">voll verrechnet</span>
+          {% elif kv.verrechnet_cent %}<span class="badge warn">teilweise verrechnet</span>
+          {% else %}<span class="badge neutral">offen</span>{% endif %}
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="7" class="leer">Noch keine Kostenvoranschläge. <a href="{{ url_for('kv.neu') }}">Jetzt anlegen</a></td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endblock %}

@@ -15,6 +15,7 @@ from .db import einstellungen, get_db
 from .export import jahr_exportieren
 from .geld import MONATE, UST_SAETZE, datum_parsen, euro_zu_cent, heute
 from .importer import importieren
+from .kostenvoranschlag import kv_laden, kv_liste, kv_rechnungen, kv_speichern, rechnung_aus_kv
 from .logik import (FachFehler, ar_bezahlt_setzen, ar_laden, ar_loeschen, ar_speichern, ar_steuersaetze,
                     ar_stornieren, er_speichern, fremdkosten_verrechnen, kunde_finden_oder_anlegen,
                     kunden_zusammenfuehren)
@@ -32,11 +33,12 @@ ausgang = Blueprint("ausgang", __name__, url_prefix="/ausgang")
 eingang = Blueprint("eingang", __name__, url_prefix="/eingang")
 kunden = Blueprint("kunden", __name__, url_prefix="/kunden")
 berichte = Blueprint("berichte", __name__, url_prefix="/auswertung")
+angebote = Blueprint("kv", __name__, url_prefix="/kostenvoranschlaege")
 verwaltung = Blueprint("verwaltung", __name__)
 
 
 def registrieren(app):
-    for bp in (uebersicht, ausgang, eingang, kunden, berichte, verwaltung):
+    for bp in (uebersicht, ausgang, eingang, angebote, kunden, berichte, verwaltung):
         app.register_blueprint(bp)
 
     @app.route("/login", methods=["GET", "POST"])
@@ -167,9 +169,10 @@ def liste():
 def _ar_formular_lesen(con):
     f = request.form
     positionen = []
-    for beschreibung, menge, einheit, preis, satz in zip(
+    kv_ids = f.getlist("pos_kv") or [""] * len(f.getlist("pos_beschreibung"))
+    for beschreibung, menge, einheit, preis, satz, kv_id in zip(
         f.getlist("pos_beschreibung"), f.getlist("pos_menge"), f.getlist("pos_einheit"),
-        f.getlist("pos_preis"), f.getlist("pos_ust"),
+        f.getlist("pos_preis"), f.getlist("pos_ust"), kv_ids,
     ):
         if not beschreibung.strip() and not preis.strip():
             continue
@@ -181,7 +184,8 @@ def _ar_formular_lesen(con):
         if cent is None:
             raise FachFehler(f"Bitte einen Preis für „{beschreibung}“ angeben.")
         positionen.append({"beschreibung": beschreibung.strip(), "menge": menge_wert, "einheit": einheit.strip(),
-                           "einzelpreis_cent": cent, "ust_satz": int(satz)})
+                           "einzelpreis_cent": cent, "ust_satz": int(satz),
+                           "kv_position_id": int(kv_id) if kv_id.isdigit() else None})
     try:
         daten = {
             "datum": datum_parsen(f.get("datum")),
@@ -448,6 +452,112 @@ def fremdkosten():
     for z in aw.offene_fremdkosten(con):
         gruppen.setdefault((z["weiter_kunde_id"], z["kunde_name"]), []).append(z)
     return render_template("fremdkosten.html", gruppen=gruppen)
+
+
+# ---------------------------------------------------------- Kostenvoranschläge
+
+@angebote.route("/")
+def liste():
+    return render_template("kv_liste.html", zeilen=kv_liste(get_db()))
+
+
+def _kv_formular_lesen(con):
+    f = request.form
+    positionen = []
+    for pid, posnr, beschreibung, betrag, satz in zip(
+        f.getlist("pos_id"), f.getlist("pos_nr"), f.getlist("pos_beschreibung"), f.getlist("pos_betrag"),
+        f.getlist("pos_ust"),
+    ):
+        if not beschreibung.strip() and not betrag.strip():
+            continue
+        try:
+            cent = euro_zu_cent(betrag)
+        except ValueError as e:
+            raise FachFehler(str(e)) from None
+        if cent is None:
+            raise FachFehler(f"Bitte einen Betrag für „{beschreibung}“ angeben.")
+        positionen.append({"id": int(pid) if pid.isdigit() else None, "posnr": posnr.strip(),
+                           "beschreibung": beschreibung.strip(), "betrag_cent": cent, "ust_satz": int(satz)})
+    try:
+        datum = datum_parsen(f.get("datum"))
+    except ValueError as e:
+        raise FachFehler(str(e)) from None
+    return {"kunde_id": kunde_finden_oder_anlegen(con, f.get("kunde")), "bezeichnung": f.get("bezeichnung", "").strip(),
+            "datum": datum, "notiz": f.get("notiz", "").strip()}, positionen
+
+
+@angebote.route("/neu", methods=["GET", "POST"])
+def neu():
+    con = get_db()
+    if request.method == "POST":
+        kv_id = kv_speichern(con, *_kv_formular_lesen(con))
+        con.commit()
+        flash("Kostenvoranschlag angelegt.", "ok")
+        return redirect(url_for("kv.detail", kv_id=kv_id))
+    return render_template("kv_formular.html", kv=None, positionen=[], heute=heute().isoformat(),
+                           kunden=_kundennamen(con), saetze=UST_SAETZE)
+
+
+@angebote.route("/<int:kv_id>/bearbeiten", methods=["GET", "POST"])
+def bearbeiten(kv_id):
+    con = get_db()
+    kv, positionen = kv_laden(con, kv_id)
+    if request.method == "POST":
+        daten, pos = _kv_formular_lesen(con)
+        kv_speichern(con, daten, pos, kv_id=kv_id)
+        con.commit()
+        flash("Kostenvoranschlag gespeichert.", "ok")
+        return redirect(url_for("kv.detail", kv_id=kv_id))
+    return render_template("kv_formular.html", kv=kv, positionen=positionen, heute=heute().isoformat(),
+                           kunden=_kundennamen(con), saetze=UST_SAETZE)
+
+
+@angebote.route("/<int:kv_id>", methods=["GET", "POST"])
+def detail(kv_id):
+    con = get_db()
+    kv, positionen = kv_laden(con, kv_id)
+    if request.method == "POST":
+        prozente = {}
+        for p in positionen:
+            wert = request.form.get(f"prozent_{p['id']}", "").strip().replace(",", ".").rstrip("%")
+            try:
+                prozente[p["id"]] = float(wert) if wert else 0
+            except ValueError:
+                raise FachFehler(f"Pos. {p['posnr']}: ungültiger Prozentsatz „{wert}“.") from None
+        try:
+            datum = datum_parsen(request.form.get("datum"))
+        except ValueError as e:
+            raise FachFehler(str(e)) from None
+        ar_id = rechnung_aus_kv(con, kv_id, prozente, {
+            "datum": datum, "betreff": request.form.get("betreff", "").strip(),
+            "leistungszeitraum": request.form.get("leistungszeitraum", "").strip(),
+        })
+        con.commit()
+        flash("Rechnung erstellt – bitte prüfen. Sie können sie hier noch bearbeiten oder ergänzen.", "ok")
+        return redirect(url_for("ausgang.detail", rechnung_id=ar_id))
+    return render_template("kv_detail.html", kv=kv, positionen=positionen, rechnungen=kv_rechnungen(con, kv_id),
+                           heute=heute().isoformat(), summe=sum(p["betrag_cent"] for p in positionen),
+                           verrechnet=sum(p["verrechnet_cent"] for p in positionen))
+
+
+@angebote.route("/<int:kv_id>/abschliessen", methods=["POST"])
+def abschliessen(kv_id):
+    con = get_db()
+    con.execute("UPDATE kostenvoranschlaege SET abgeschlossen = ? WHERE id = ?",
+                (1 if request.form.get("abgeschlossen") == "1" else 0, kv_id))
+    con.commit()
+    return redirect(url_for("kv.detail", kv_id=kv_id))
+
+
+@angebote.route("/<int:kv_id>/loeschen", methods=["POST"])
+def loeschen(kv_id):
+    con = get_db()
+    if kv_rechnungen(con, kv_id):
+        raise FachFehler("Zu diesem Kostenvoranschlag gibt es bereits Rechnungen – bitte stattdessen abschließen.")
+    con.execute("DELETE FROM kostenvoranschlaege WHERE id = ?", (kv_id,))
+    con.commit()
+    flash("Kostenvoranschlag gelöscht.", "ok")
+    return redirect(url_for("kv.liste"))
 
 
 # ------------------------------------------------------------------- Kunden

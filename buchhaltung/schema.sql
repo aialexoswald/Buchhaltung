@@ -49,7 +49,28 @@ CREATE TABLE IF NOT EXISTS ar_positionen (
     einheit         TEXT NOT NULL DEFAULT '',
     einzelpreis_cent INTEGER NOT NULL DEFAULT 0,
     ust_satz        INTEGER NOT NULL DEFAULT 20,
-    netto_cent      INTEGER NOT NULL DEFAULT 0
+    netto_cent      INTEGER NOT NULL DEFAULT 0,
+    kv_position_id  INTEGER REFERENCES kv_positionen (id) ON DELETE SET NULL
+);
+
+-- Kostenvoranschläge (Angebote), aus denen anteilig abgerechnet wird
+CREATE TABLE IF NOT EXISTS kostenvoranschlaege (
+    id          INTEGER PRIMARY KEY,
+    kunde_id    INTEGER NOT NULL REFERENCES kunden (id),
+    bezeichnung TEXT NOT NULL DEFAULT '',
+    datum       TEXT NOT NULL,
+    notiz       TEXT NOT NULL DEFAULT '',
+    abgeschlossen INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS kv_positionen (
+    id          INTEGER PRIMARY KEY,
+    kv_id       INTEGER NOT NULL REFERENCES kostenvoranschlaege (id) ON DELETE CASCADE,
+    reihenfolge INTEGER NOT NULL,
+    posnr       TEXT NOT NULL DEFAULT '',
+    beschreibung TEXT NOT NULL DEFAULT '',
+    betrag_cent INTEGER NOT NULL DEFAULT 0,
+    ust_satz    INTEGER NOT NULL DEFAULT 20
 );
 
 CREATE TABLE IF NOT EXISTS eingangsrechnungen (

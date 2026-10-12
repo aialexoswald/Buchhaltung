@@ -118,10 +118,11 @@ def ar_speichern(con, daten, positionen, rechnung_id=None, nummer=None):
     for i, p in enumerate(pos, start=1):
         con.execute(
             """INSERT INTO ar_positionen
-               (rechnung_id, pos, beschreibung, menge, einheit, einzelpreis_cent, ust_satz, netto_cent)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+               (rechnung_id, pos, beschreibung, menge, einheit, einzelpreis_cent, ust_satz, netto_cent,
+                kv_position_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (rechnung_id, i, p.get("beschreibung", ""), p["menge"], p.get("einheit", ""),
-             p["einzelpreis_cent"], p["ust_satz"], p["netto_cent"]),
+             p["einzelpreis_cent"], p["ust_satz"], p["netto_cent"], p.get("kv_position_id")),
         )
     return rechnung_id
 
@@ -192,6 +193,7 @@ def ar_stornieren(con, rechnung_id, datum=None):
         [
             {
                 "beschreibung": p["beschreibung"],
+                "kv_position_id": p["kv_position_id"],
                 "menge": -p["menge"],
                 "einheit": p["einheit"],
                 "einzelpreis_cent": p["einzelpreis_cent"],

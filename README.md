@@ -10,6 +10,9 @@ einzigen Datei (`data/buchhaltung.db`) auf Ihrem Rechner.
   Steuersätzen (20 / 13 / 10 / 0 %), Steuerhinweisen (Reverse Charge, steuerfrei) und
   **PDF-Rechnung im Futura-Layout** (Logo, „Faktura_N°…“, Fußzeile mit Firmendaten;
   Dateiname wie bisher `100_Futura_RE_2026.pdf`). Storno erzeugt eine Stornorechnung mit eigener Nummer.
+- **Kostenvoranschläge** mit Positionen; daraus Rechnungen erstellen, je Position 0–100 %
+  (z. B. eine Position nicht, eine andere zu 50 %). Die App zeigt je Position, wie viel
+  bereits verrechnet ist, und verhindert mehr als 100 %.
 - **Eingangsrechnungen** mit laufender Nummer je Jahr, automatischer Vorsteuer-Berechnung,
   Reverse Charge, Beleg-Upload (PDF/Bild) und Zahlungsstatus.
 - **Fremdkosten weiterverrechnen**: Eingangsrechnungen einem Kunden zuordnen; offene
