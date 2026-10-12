@@ -28,6 +28,7 @@ def test_rechnung_anlegen_pdf_bezahlen(client):
     url = antwort.headers["Location"]
     seite = client.get(url).get_data(as_text=True)
     assert "2026_001" in seite and "1.740,00 €" in seite  # (240 + 1500) netto
+    assert post(client, "/einstellungen", rechnung_zahlungstext="Zahlbar bis {faellig}.").status_code == 302
     rid = re.search(r"/ausgang/(\d+)", url).group(1)
     pdf = client.get(f"/ausgang/{rid}/pdf")
     assert pdf.mimetype == "application/pdf" and pdf.data.startswith(b"%PDF")

@@ -121,3 +121,31 @@ def test_kunden_zusammenfuehren(con):
     kunden_zusammenfuehren(con, von, nach)
     assert con.execute("SELECT COUNT(*) FROM ausgangsrechnungen WHERE kunde_id = ?", (nach,)).fetchone()[0] == 2
     assert con.execute("SELECT COUNT(*) FROM kunden").fetchone()[0] == 1
+
+
+def test_pdf_nummer_und_dateiname():
+    from buchhaltung.pdf import dateiname, laufnummer
+    assert laufnummer("2026_100") == "100"
+    assert laufnummer("2026_007") == "7"
+    assert dateiname({"nummer": "2026_100"}) == "100_Futura_RE_2026.pdf"
+
+
+def test_migration_alte_datenbank(tmp_path):
+    """Ältere Datenbanken bekommen die Spalte „betreff“ und die Futura-Firmendaten."""
+    from buchhaltung.db import SCHEMA, einstellungen, initialisieren, verbinden
+    con = verbinden(str(tmp_path / "alt.db"))
+    altes_schema = "\n".join(z for z in SCHEMA.read_text(encoding="utf-8").splitlines() if "betreff" not in z)
+    con.executescript(altes_schema + """
+        INSERT INTO einstellungen VALUES ('firma_uid', ''), ('bank_iban', 'AT00 eigene'),
+            ('rechnung_fusstext', 'Vielen Dank für die gute Zusammenarbeit!');
+    """)
+    initialisieren(con)
+    spalten = {r["name"] for r in con.execute("PRAGMA table_info(ausgangsrechnungen)")}
+    assert "betreff" in spalten
+    w = einstellungen(con)
+    assert w["firma_uid"] == "ATU67150012"
+    assert w["bank_iban"] == "AT00 eigene"  # eigene Eingaben bleiben
+    assert w["rechnung_fusstext"] == ""
+    con.execute("UPDATE einstellungen SET wert = '' WHERE schluessel = 'firma_uid'")
+    initialisieren(con)
+    assert einstellungen(con)["firma_uid"] == ""  # absichtlich geleert → bleibt leer

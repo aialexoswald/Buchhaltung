@@ -8,7 +8,8 @@ einzigen Datei (`data/buchhaltung.db`) auf Ihrem Rechner.
 
 - **Ausgangsrechnungen** mit fortlaufender Nummer (`2026_114`, …), Positionen, gemischten
   Steuersätzen (20 / 13 / 10 / 0 %), Steuerhinweisen (Reverse Charge, steuerfrei) und
-  **PDF-Rechnung** nach § 11 UStG. Storno erzeugt eine Stornorechnung mit eigener Nummer.
+  **PDF-Rechnung im Futura-Layout** (Logo, „Faktura_N°…“, Fußzeile mit Firmendaten;
+  Dateiname wie bisher `100_Futura_RE_2026.pdf`). Storno erzeugt eine Stornorechnung mit eigener Nummer.
 - **Eingangsrechnungen** mit laufender Nummer je Jahr, automatischer Vorsteuer-Berechnung,
   Reverse Charge, Beleg-Upload (PDF/Bild) und Zahlungsstatus.
 - **Fremdkosten weiterverrechnen**: Eingangsrechnungen einem Kunden zuordnen; offene
@@ -114,6 +115,9 @@ das Ergebnis als Release.
 Aufbau: `buchhaltung/logik.py` (Rechnungslogik), `auswertung.py` (UVA, offene Posten,
 Umsatz), `importer.py` (Excel-Import), `pdf.py` (Rechnungs-PDF), `ansichten.py` (Web-Routen),
 `templates/` (Oberfläche). Beträge werden durchgehend in ganzen Cent gespeichert.
+
+Schrift auf den Rechnungen: [Jost](https://github.com/indestructible-type/Jost) als freie
+Alternative zu Futura (SIL Open Font License, siehe `buchhaltung/static/schrift/OFL.txt`).
 
 > Die UVA-Ansicht ist eine Hilfsrechnung zur Kontrolle und ersetzt nicht die Abstimmung mit
 > der Steuerberatung.

@@ -1,19 +1,36 @@
-"""Erzeugt Rechnungen als PDF (reportlab)."""
+"""Erzeugt Rechnungen als PDF im Futura-Layout (reportlab).
+
+Aufbau nach der bisherigen Word-Vorlage: Logo rechts oben, Zeile „An … Faktura_N° … Datum“,
+Empfänger, „_RECHNUNG“, Auftraggeber-UID, Betreff (fett), Leistungszeitraum,
+Positionen mit „netto EUR“, Summenblock, Zahlungstext, Fußzeile mit orangen Bezeichnungen.
+"""
 from io import BytesIO
+from pathlib import Path
 from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_RIGHT
+from reportlab.lib.enums import TA_CENTER, TA_RIGHT
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
+from reportlab.lib.utils import ImageReader
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-from .geld import cent_zu_euro_text, datum_text
+from .geld import cent_zu_euro_text, datum_parsen, datum_text
 from .logik import ar_steuersaetze
 
-GRAU = colors.HexColor("#5b6470")
-LINIE = colors.HexColor("#c9ced6")
+STATIC = Path(__file__).with_name("static")
+ORANGE = colors.HexColor("#FAB535")
+TEXT = colors.HexColor("#1a1a1a")
+LEICHT, KRAEFTIG = "Jost-Light", "Jost-Medium"
+
+
+def _schriften_registrieren():
+    if LEICHT not in pdfmetrics.getRegisteredFontNames():
+        pdfmetrics.registerFont(TTFont(LEICHT, str(STATIC / "schrift" / "Jost-Light.ttf")))
+        pdfmetrics.registerFont(TTFont(KRAEFTIG, str(STATIC / "schrift" / "Jost-Medium.ttf")))
 
 
 def _absatz(text):
@@ -21,143 +38,161 @@ def _absatz(text):
     return "<br/>".join(escape(z) for z in (text or "").splitlines())
 
 
+def _betrag(cent):
+    return cent_zu_euro_text(cent, mit_waehrung=False)
+
+
 def _menge(m):
     return f"{m:g}".replace(".", ",")
 
 
-def rechnung_pdf(rechnung, positionen, firma):
+def laufnummer(nummer):
+    """'2026_100' → '100', '2026_007' → '7'."""
+    teil = nummer.split("_", 1)[-1]
+    return str(int(teil)) if teil.isdigit() else teil
+
+
+def dateiname(rechnung):
+    """Wie bisher: 100_Futura_RE_2026.pdf"""
+    jahr = rechnung["nummer"].split("_", 1)[0]
+    return f"{laufnummer(rechnung['nummer'])}_Futura_RE_{jahr}.pdf"
+
+
+def logo_pfad(datenverzeichnis):
+    """Eigenes Logo aus dem Datenordner, sonst das mitgelieferte Futura-Logo."""
+    for endung in ("png", "jpg", "jpeg"):
+        eigenes = Path(datenverzeichnis) / f"logo.{endung}"
+        if eigenes.exists():
+            return eigenes
+    return STATIC / "logo.png"
+
+
+def rechnung_pdf(rechnung, positionen, firma, logo=None):
+    _schriften_registrieren()
     puffer = BytesIO()
-    stile = getSampleStyleSheet()
-    normal = ParagraphStyle("n", parent=stile["Normal"], fontName="Helvetica", fontSize=9.5, leading=13)
-    klein = ParagraphStyle("k", parent=normal, fontSize=7.5, leading=10, textColor=GRAU)
+    normal = ParagraphStyle("n", fontName=LEICHT, fontSize=11, leading=15, textColor=TEXT)
+    fett = ParagraphStyle("f", parent=normal, fontName=KRAEFTIG)
     rechts = ParagraphStyle("r", parent=normal, alignment=TA_RIGHT)
-    titel = ParagraphStyle("t", parent=normal, fontName="Helvetica-Bold", fontSize=16, leading=20)
+    fett_rechts = ParagraphStyle("fr", parent=fett, alignment=TA_RIGHT)
+    fuss = ParagraphStyle("fu", parent=normal, fontSize=7.5, leading=9.5, alignment=TA_CENTER)
+    orange = ORANGE.hexval().replace("0x", "#")
+
+    def o(text):
+        return f'<font color="{orange}">{escape(text)}</font>'
 
     def fusszeile(canvas, doc):
-        teile = [firma.get("firma_name", ""), firma.get("firma_adresse", "").replace("\n", ", ")]
-        if firma.get("firma_uid"):
-            teile.append(f"UID {firma['firma_uid']}")
-        if firma.get("firma_firmenbuch"):
-            teile.append(firma["firma_firmenbuch"])
-        zeile2 = [x for x in (firma.get("bank_name"), firma.get("bank_iban") and f"IBAN {firma['bank_iban']}",
-                              firma.get("bank_bic") and f"BIC {firma['bank_bic']}") if x]
-        canvas.saveState()
-        canvas.setFont("Helvetica", 7.5)
-        canvas.setFillColor(GRAU)
-        canvas.drawCentredString(A4[0] / 2, 14 * mm, " · ".join(t for t in teile if t))
-        canvas.drawCentredString(A4[0] / 2, 10 * mm, " · ".join(zeile2))
-        canvas.drawRightString(A4[0] - 20 * mm, 287 * mm, f"Seite {doc.page}")
-        canvas.restoreState()
+        adresse = ", ".join(z.strip() for z in firma.get("firma_adresse", "").splitlines() if z.strip())
+        zeile1 = o(firma.get("firma_name", "").upper()) + (f", {escape(adresse)}" if adresse else "")
+        if firma.get("firma_zweigstelle"):
+            zeile1 += f" {o('Zweigstelle:')} {escape(firma['firma_zweigstelle'])}"
+        zeile2 = " ".join(f"{o(label)} {escape(firma[k])}" for k, label in
+                          (("firma_firmenbuch", "FN:"), ("firma_wko", "WKO Mitgl.Nr.")) if firma.get(k))
+        zeile3 = " ".join(f"{o(label)} {escape(firma[k])}" for k, label in
+                          (("firma_uid", "UID:"), ("bank_iban", "IBAN:"), ("bank_bic", "BIC:")) if firma.get(k))
+        if firma.get("bank_name"):
+            zeile3 += f" {escape(firma['bank_name'])}"
+        kontakt = " ".join(f"{o(label)} {escape(firma[k])}" for k, label in
+                           (("firma_telefon", "Tel.:"), ("firma_email", "E-Mail:"), ("firma_web", "Web:")) if firma.get(k))
+        text = "<br/>".join(z for z in (zeile1, zeile2, zeile3, kontakt) if z)
+        absatz = Paragraph(text, fuss)
+        _, hoehe = absatz.wrap(doc.width, 30 * mm)
+        absatz.drawOn(canvas, doc.leftMargin, 12 * mm)
+        if doc.page > 1:
+            canvas.saveState()
+            canvas.setFont(LEICHT, 8)
+            canvas.drawRightString(A4[0] - doc.rightMargin, A4[1] - 12 * mm, f"Seite {doc.page}")
+            canvas.restoreState()
+
+    def logo_zeichnen(canvas, doc):
+        if logo and Path(logo).exists():
+            bild = ImageReader(str(logo))
+            b, h = bild.getSize()
+            breite = 37.5 * mm
+            canvas.drawImage(bild, 147.5 * mm, A4[1] - 13 * mm - breite * h / b,
+                             width=breite, height=breite * h / b, mask="auto")
+        fusszeile(canvas, doc)
 
     doc = SimpleDocTemplate(
-        puffer, pagesize=A4, leftMargin=22 * mm, rightMargin=20 * mm, topMargin=20 * mm, bottomMargin=25 * mm,
+        puffer, pagesize=A4, leftMargin=23 * mm, rightMargin=24 * mm, topMargin=37.5 * mm, bottomMargin=30 * mm,
         title=f"Rechnung {rechnung['nummer']}", author=firma.get("firma_name", ""),
     )
+    breite = doc.width - 12  # Rahmen hat 6 pt Innenabstand je Seite
+    ohne_rand = [("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                 ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                 ("VALIGN", (0, 0), (-1, -1), "BOTTOM")]
     inhalt = []
-    # Der Rahmen hat 6 pt Innenabstand je Seite; Spaltenbreiten (in mm, Summe 168) darauf skalieren
-    faktor = (doc.width - 12) / (168 * mm)
 
-    def spalten(*werte):
-        return [w * mm * faktor for w in werte]
-
-    absender_kopf = Paragraph(
-        f"<b>{escape(firma.get('firma_name', ''))}</b><br/>{_absatz(firma.get('firma_adresse', ''))}"
-        + "".join(f"<br/>{escape(firma[k])}" for k in ("firma_telefon", "firma_email", "firma_web") if firma.get(k)),
-        rechts,
-    )
-    inhalt.append(Table([[None, absender_kopf]], colWidths=spalten(100, 68),
-                        style=[("VALIGN", (0, 0), (-1, -1), "TOP"), ("RIGHTPADDING", (0, 0), (-1, -1), 0)]))
-    inhalt.append(Spacer(1, 6 * mm))
-
-    absender_zeile = Paragraph(
-        escape(" · ".join(x for x in (firma.get("firma_name", ""),
-                                      firma.get("firma_adresse", "").replace("\n", ", ")) if x)), klein)
-    empfaenger = Paragraph(f"{escape(rechnung['kunde_name'])}<br/>{_absatz(rechnung['kunde_adresse'])}", normal)
-    daten = [
-        ["Rechnungsnummer", rechnung["nummer"]],
-        ["Rechnungsdatum", datum_text(rechnung["datum"])],
-    ]
-    if rechnung["leistungszeitraum"]:
-        daten.append(["Leistungszeitraum", rechnung["leistungszeitraum"]])
-    if rechnung["kunde_uid"]:
-        daten.append(["Ihre UID", rechnung["kunde_uid"]])
-    if rechnung["projekt"]:
-        daten.append(["Projekt", rechnung["projekt"]])
-    datenblock = Table(
-        [[Paragraph(escape(a), klein), Paragraph(escape(b), normal)] for a, b in daten],
-        colWidths=spalten(30, 42),
-        style=[("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0),
-               ("TOPPADDING", (0, 0), (-1, -1), 1), ("BOTTOMPADDING", (0, 0), (-1, -1), 1)],
-    )
+    # „An“ – Rechnungsnummer – Datum
     inhalt.append(Table(
-        [[[absender_zeile, Spacer(1, 2 * mm), empfaenger], datenblock]],
-        colWidths=spalten(96, 72),
-        style=[("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0)],
+        [[Paragraph("An", normal), Paragraph(f"Faktura_N°{escape(laufnummer(rechnung['nummer']))}", normal),
+          Paragraph(datum_text(rechnung["datum"]), rechts)]],
+        colWidths=[breite - 59 * mm, 37 * mm, 22 * mm], style=ohne_rand,
     ))
-    inhalt.append(Spacer(1, 14 * mm))
+    inhalt.append(Spacer(1, 5 * mm))
+    inhalt.append(Paragraph(f"{escape(rechnung['kunde_name'])}<br/>{_absatz(rechnung['kunde_adresse'])}", normal))
+    inhalt.append(Spacer(1, 13 * mm))
 
     ist_storno = bool(rechnung["storno_von_id"])
-    inhalt.append(Paragraph("Stornorechnung" if ist_storno else "Rechnung", titel))
-    inhalt.append(Spacer(1, 3 * mm))
+    inhalt.append(Paragraph("_STORNORECHNUNG" if ist_storno else "_RECHNUNG", fett))
+    inhalt.append(Spacer(1, 10 * mm))
+    if rechnung["kunde_uid"]:
+        inhalt.append(Paragraph(f"Auftraggeber:&nbsp; {escape(rechnung['kunde_uid'])}", normal))
+        inhalt.append(Spacer(1, 4 * mm))
     if ist_storno:
-        inhalt.append(Paragraph(f"Storno zu Rechnung {escape(rechnung['storno_von_nummer'] or '')}.", normal))
-    elif firma.get("rechnung_einleitung"):
+        inhalt.append(Paragraph(f"Storno zu Faktura_N°{escape(laufnummer(rechnung['storno_von_nummer'] or ''))}", normal))
+        inhalt.append(Spacer(1, 3 * mm))
+    betreff = rechnung["betreff"] or rechnung["projekt"]
+    if betreff:
+        inhalt.append(Paragraph(escape(betreff), fett))
+        inhalt.append(Spacer(1, 3.5 * mm))
+    if rechnung["leistungszeitraum"]:
+        inhalt.append(Paragraph(f"Leistungszeitraum {escape(rechnung['leistungszeitraum'])}", normal))
+        inhalt.append(Spacer(1, 3.5 * mm))
+    if firma.get("rechnung_einleitung"):
         inhalt.append(Paragraph(_absatz(firma["rechnung_einleitung"]), normal))
-    inhalt.append(Spacer(1, 5 * mm))
+        inhalt.append(Spacer(1, 3.5 * mm))
 
-    kopf = ["Pos.", "Beschreibung", "Menge", "Einzelpreis", "USt", "Betrag"]
-    zeilen = [kopf]
+    # Positionen: Text links, „netto EUR“ + Betrag rechts
+    # wie in der Vorlage: Beträge enden etwa 9 mm vor dem rechten Rand der Datumszeile
+    spalten = [breite - 49 * mm, 23 * mm, 17 * mm]
+    zeilen = []
     for p in positionen:
-        menge = _menge(p["menge"]) + (f" {p['einheit']}" if p["einheit"] else "")
-        zeilen.append([
-            str(p["pos"]), Paragraph(_absatz(p["beschreibung"]), normal), menge,
-            cent_zu_euro_text(p["einzelpreis_cent"]), f"{p['ust_satz']} %", cent_zu_euro_text(p["netto_cent"]),
-        ])
-    tabelle = Table(zeilen, colWidths=spalten(11, 72, 20, 24, 13, 28), repeatRows=1)
+        text = _absatz(p["beschreibung"])
+        if p["menge"] != 1 or p["einheit"]:
+            text += (f'<br/><font size="9">{_menge(p["menge"])} {escape(p["einheit"])} à '
+                     f'{_betrag(p["einzelpreis_cent"])} EUR</font>')
+        if p["ust_satz"] == 0 and any(x["ust_satz"] for x in positionen):
+            text += '<font size="9"> (ohne MwSt)</font>'
+        zeilen.append([Paragraph(text, normal), Paragraph("netto EUR", normal),
+                       Paragraph(_betrag(p["netto_cent"]), rechts)])
+    zeilen.append([Spacer(1, 2 * mm), "", ""])
+    zeilen.append([Paragraph("Total netto", normal), Paragraph("netto EUR", normal),
+                   Paragraph(_betrag(rechnung["netto_cent"]), rechts)])
+    for satz, (_, ust) in ar_steuersaetze(positionen).items():
+        if satz:
+            zeilen.append(["", Paragraph(f"{satz}% MwSt", normal), Paragraph(_betrag(ust), rechts)])
+    zeilen.append([Paragraph("_Gesamt", fett), Paragraph("brutto EUR", fett),
+                   Paragraph(_betrag(rechnung["brutto_cent"]), fett_rechts)])
+    tabelle = Table(zeilen, colWidths=spalten, hAlign="LEFT")
     tabelle.setStyle(TableStyle([
-        ("FONT", (0, 0), (-1, 0), "Helvetica-Bold", 8.5),
-        ("FONT", (0, 1), (-1, -1), "Helvetica", 9.5),
-        ("TEXTCOLOR", (0, 0), (-1, 0), GRAU),
-        ("LINEBELOW", (0, 0), (-1, 0), 0.8, colors.black),
-        ("LINEBELOW", (0, 1), (-1, -1), 0.3, LINIE),
-        ("ALIGN", (2, 0), (-1, -1), "RIGHT"),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("LEFTPADDING", (0, 0), (0, -1), 0),
-        ("RIGHTPADDING", (-1, 0), (-1, -1), 0),
+        ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, -1), (-1, -1), 8),
     ]))
     inhalt.append(tabelle)
-    inhalt.append(Spacer(1, 4 * mm))
-
-    summen = [["Summe netto", cent_zu_euro_text(rechnung["netto_cent"])]]
-    for satz, (netto, ust) in ar_steuersaetze(positionen).items():
-        if satz:
-            summen.append([f"zzgl. {satz} % USt von {cent_zu_euro_text(netto)}", cent_zu_euro_text(ust)])
-    summen.append(["Gesamtbetrag", cent_zu_euro_text(rechnung["brutto_cent"])])
-    summentabelle = Table(summen, colWidths=spalten(70, 28), hAlign="RIGHT")
-    summentabelle.setStyle(TableStyle([
-        ("FONT", (0, 0), (-1, -1), "Helvetica", 9.5),
-        ("FONT", (0, -1), (-1, -1), "Helvetica-Bold", 10.5),
-        ("ALIGN", (0, 0), (-1, -1), "RIGHT"),
-        ("LINEABOVE", (0, -1), (-1, -1), 0.8, colors.black),
-        ("RIGHTPADDING", (-1, 0), (-1, -1), 0),
-    ]))
-    inhalt.append(summentabelle)
     inhalt.append(Spacer(1, 8 * mm))
 
     if rechnung["steuerhinweis"]:
         inhalt.append(Paragraph(_absatz(rechnung["steuerhinweis"]), normal))
         inhalt.append(Spacer(1, 3 * mm))
-    if not ist_storno and rechnung["brutto_cent"] > 0:
-        zahlung = f"Bitte überweisen Sie den Betrag bis {datum_text(rechnung['faellig_am'])} ohne Abzug"
-        if firma.get("bank_iban"):
-            zahlung += f" auf unser Konto IBAN {escape(firma['bank_iban'])}"
-            if firma.get("bank_bic"):
-                zahlung += f", BIC {escape(firma['bank_bic'])}"
-        zahlung += f", unter Angabe der Rechnungsnummer {escape(rechnung['nummer'])}."
-        inhalt.append(Paragraph(zahlung, normal))
+    if not ist_storno and rechnung["brutto_cent"] > 0 and firma.get("rechnung_zahlungstext"):
+        faellig = datum_parsen(rechnung["faellig_am"]) if rechnung["faellig_am"] else None
+        text = firma["rechnung_zahlungstext"].replace("{faellig}", faellig.strftime("%d.%m.%Y") if faellig else "")
+        inhalt.append(Paragraph(_absatz(text), normal))
         inhalt.append(Spacer(1, 3 * mm))
     if firma.get("rechnung_fusstext"):
         inhalt.append(Paragraph(_absatz(firma["rechnung_fusstext"]), normal))
 
-    doc.build(inhalt, onFirstPage=fusszeile, onLaterPages=fusszeile)
+    doc.build(inhalt, onFirstPage=logo_zeichnen, onLaterPages=fusszeile)
     return puffer.getvalue()

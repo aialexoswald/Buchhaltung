@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS ausgangsrechnungen (
     datum          TEXT NOT NULL,           -- ISO-Datum JJJJ-MM-TT
     kunde_id       INTEGER NOT NULL REFERENCES kunden (id),
     projekt        TEXT NOT NULL DEFAULT '',
+    betreff        TEXT NOT NULL DEFAULT '',
     leistungszeitraum TEXT NOT NULL DEFAULT '',
     steuerhinweis  TEXT NOT NULL DEFAULT '',
     notiz          TEXT NOT NULL DEFAULT '',

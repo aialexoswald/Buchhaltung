@@ -8,18 +8,27 @@ SCHEMA = Path(__file__).with_name("schema.sql")
 
 STANDARD_EINSTELLUNGEN = {
     "firma_name": "Futura GmbH",
-    "firma_adresse": "",
-    "firma_uid": "",
-    "firma_firmenbuch": "",
+    "firma_adresse": "Mariahilferstrasse 54/15\nA1070 Wien",
+    "firma_zweigstelle": "Am Forst 21, 3011 Irenental",
+    "firma_uid": "ATU67150012",
+    "firma_firmenbuch": "378180y",
+    "firma_wko": "0821830",
     "firma_email": "",
     "firma_telefon": "",
     "firma_web": "",
-    "bank_name": "",
-    "bank_iban": "",
-    "bank_bic": "",
+    "bank_name": "Raiffeisenbank Wienerwald",
+    "bank_iban": "AT51 3266 7000 0007 5952",
+    "bank_bic": "RLNWATWWPRB",
     "zahlungsziel_tage": "14",
-    "rechnung_einleitung": "Wir erlauben uns, für unsere Leistungen wie folgt in Rechnung zu stellen:",
-    "rechnung_fusstext": "Vielen Dank für die gute Zusammenarbeit!",
+    "rechnung_einleitung": "",
+    "rechnung_zahlungstext": "Zahlbar prompt nach Rechnungserhalt.",
+    "rechnung_fusstext": "",
+}
+
+# Frühere Standardtexte, die beim Update durch die neuen ersetzt werden (nur wenn unverändert)
+ALTE_STANDARDS = {
+    "rechnung_einleitung": {"Wir erlauben uns, für unsere Leistungen wie folgt in Rechnung zu stellen:"},
+    "rechnung_fusstext": {"Vielen Dank für die gute Zusammenarbeit!"},
 }
 
 
@@ -32,12 +41,25 @@ def verbinden(pfad):
 
 def initialisieren(con):
     con.executescript(SCHEMA.read_text(encoding="utf-8"))
+    _migrieren(con)
+    vorhanden = einstellungen(con)
     for schluessel, wert in STANDARD_EINSTELLUNGEN.items():
-        con.execute(
-            "INSERT OR IGNORE INTO einstellungen (schluessel, wert) VALUES (?, ?)",
-            (schluessel, wert),
-        )
+        if schluessel not in vorhanden:
+            con.execute("INSERT INTO einstellungen (schluessel, wert) VALUES (?, ?)", (schluessel, wert))
+        elif vorhanden[schluessel] in ALTE_STANDARDS.get(schluessel, ()) or (
+            not vorhanden[schluessel] and wert and not vorhanden.get("_firmendaten_uebernommen")
+        ):
+            con.execute("UPDATE einstellungen SET wert = ? WHERE schluessel = ?", (wert, schluessel))
+    # leere Firmendaten nur einmal vorbelegen – später absichtlich geleerte Felder bleiben leer
+    con.execute("INSERT OR IGNORE INTO einstellungen (schluessel, wert) VALUES ('_firmendaten_uebernommen', '1')")
     con.commit()
+
+
+def _migrieren(con):
+    """Spalten nachrüsten, die in älteren Datenbanken fehlen."""
+    spalten = {r["name"] for r in con.execute("PRAGMA table_info(ausgangsrechnungen)")}
+    if "betreff" not in spalten:
+        con.execute("ALTER TABLE ausgangsrechnungen ADD COLUMN betreff TEXT NOT NULL DEFAULT ''")
 
 
 def get_db():

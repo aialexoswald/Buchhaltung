@@ -28,7 +28,10 @@
         <div class="hilfe">Leer = Rechnungsdatum + Zahlungsziel</div></div>
       <div class="feld"><label for="leistungszeitraum">Leistungszeitraum</label>
         <input id="leistungszeitraum" name="leistungszeitraum" placeholder="z. B. Oktober 2026" value="{{ r.leistungszeitraum if r else '' }}"></div>
-      <div class="feld"><label for="projekt">Projekt / Thema</label>
+      <div class="feld breit"><label for="betreff">Betreff (fett auf der Rechnung)</label>
+        <input id="betreff" name="betreff" value="{{ r.betreff if r else '' }}" placeholder="z. B. Ausschreibung Webseite 50%, Social Media Redaktionsplan">
+        <div class="hilfe">Leer = Projekt wird verwendet.</div></div>
+      <div class="feld"><label for="projekt">Projekt / Thema (für Auswertungen)</label>
         <input id="projekt" name="projekt" list="projektliste" value="{{ r.projekt if r else '' }}">
         <datalist id="projektliste">{% for p in projekte %}<option value="{{ p }}">{% endfor %}</datalist></div>
       <div class="feld"><label for="steuerhinweis">Steuerhinweis auf der Rechnung</label>

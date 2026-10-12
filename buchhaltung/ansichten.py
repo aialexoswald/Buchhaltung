@@ -18,7 +18,7 @@ from .importer import importieren
 from .logik import (FachFehler, ar_bezahlt_setzen, ar_laden, ar_loeschen, ar_speichern, ar_steuersaetze,
                     ar_stornieren, er_speichern, fremdkosten_verrechnen, kunde_finden_oder_anlegen,
                     kunden_zusammenfuehren)
-from .pdf import rechnung_pdf
+from .pdf import dateiname, logo_pfad, rechnung_pdf
 
 STEUERHINWEISE = [
     "",
@@ -187,6 +187,7 @@ def _ar_formular_lesen(con):
             "datum": datum_parsen(f.get("datum")),
             "kunde_id": kunde_finden_oder_anlegen(con, f.get("kunde")),
             "projekt": f.get("projekt", "").strip(),
+            "betreff": f.get("betreff", "").strip(),
             "leistungszeitraum": f.get("leistungszeitraum", "").strip(),
             "steuerhinweis": f.get("steuerhinweis", "").strip(),
             "notiz": f.get("notiz", "").strip(),
@@ -249,9 +250,9 @@ def detail(rechnung_id):
 def pdf(rechnung_id):
     con = get_db()
     r, pos = ar_laden(con, rechnung_id)
-    inhalt = rechnung_pdf(r, pos, einstellungen(con))
+    inhalt = rechnung_pdf(r, pos, einstellungen(con), logo_pfad(current_app.config["DATENVERZEICHNIS"]))
     return Response(inhalt, mimetype="application/pdf", headers={
-        "Content-Disposition": f'inline; filename="Rechnung_{r["nummer"]}.pdf"'})
+        "Content-Disposition": f'inline; filename="{dateiname(r)}"'})
 
 
 @ausgang.route("/<int:rechnung_id>/bezahlt", methods=["POST"])
@@ -575,6 +576,18 @@ def einstellungen_seite():
             if schluessel in request.form:
                 con.execute("UPDATE einstellungen SET wert = ? WHERE schluessel = ?",
                             (request.form[schluessel].strip(), schluessel))
+        logo = request.files.get("logo")
+        daten = Path(current_app.config["DATENVERZEICHNIS"])
+        if logo and logo.filename:
+            endung = Path(logo.filename).suffix.lower().lstrip(".")
+            if endung not in ("png", "jpg", "jpeg"):
+                raise FachFehler("Das Logo bitte als PNG oder JPG hochladen.")
+            for alt in daten.glob("logo.*"):
+                alt.unlink()
+            logo.save(daten / f"logo.{endung}")
+        elif request.form.get("logo_zuruecksetzen"):
+            for alt in daten.glob("logo.*"):
+                alt.unlink()
         con.commit()
         flash("Einstellungen gespeichert.", "ok")
         return redirect(url_for("verwaltung.einstellungen_seite"))
